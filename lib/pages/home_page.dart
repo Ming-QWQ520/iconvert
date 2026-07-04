@@ -123,7 +123,10 @@ class _HomePageState extends State<HomePage> {
         break;
     }
 
-    final files = await FileService.pickFiles(allowedExtensions: allowedExts);
+    final files = await FileService.pickFiles(
+      allowedExtensions: allowedExts,
+      mediaType: _currentTab,
+    );
     if (files.isEmpty) return;
 
     // 弹出批量转换弹窗，让用户选择统一输出格式和参数
@@ -211,36 +214,47 @@ class _HomePageState extends State<HomePage> {
 
     await model.startAll(
       outputDir: outputDir,
+      onProgress: (task, progress) {
+        // 实时更新通知栏当前任务进度
+        ForegroundService.updateProgress(
+          currentProgress: progress,
+          completedCount: completedCount,
+          total: total,
+          currentFileName: task.originalName,
+          successCount: successCount,
+          failedCount: failedCount,
+        );
+      },
       onTaskCompleted: (task) async {
         await history.add(task);
         completedCount++;
         successCount++;
-        await ForegroundService.updateNotification(
-          completed: completedCount,
+        await ForegroundService.updateTaskDone(
+          completedCount: completedCount,
           total: total,
-          success: successCount,
-          failed: failedCount,
-          currentFileName: task.originalName,
+          fileName: task.originalName,
+          successCount: successCount,
+          failedCount: failedCount,
         );
       },
       onTaskFailed: (task) {
         completedCount++;
         failedCount++;
-        ForegroundService.updateNotification(
-          completed: completedCount,
+        ForegroundService.updateTaskDone(
+          completedCount: completedCount,
           total: total,
-          success: successCount,
-          failed: failedCount,
-          currentFileName: task.originalName,
+          fileName: task.originalName,
+          successCount: successCount,
+          failedCount: failedCount,
         );
       },
     );
 
-    await ForegroundService.updateNotification(
-      completed: completedCount,
+    // 完成总结通知
+    await ForegroundService.showSummary(
       total: total,
-      success: successCount,
-      failed: failedCount,
+      successCount: successCount,
+      failedCount: failedCount,
     );
     await Future.delayed(const Duration(seconds: 3));
     await ForegroundService.stop();
