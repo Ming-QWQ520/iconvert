@@ -12,6 +12,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:iconvert/models/conversion_model.dart';
 import 'package:iconvert/models/conversion_task.dart';
+import 'package:iconvert/widgets/glass_theme.dart';
 
 class FileListTile extends StatelessWidget {
   final ConversionTask task;
@@ -42,20 +43,23 @@ class FileListTile extends StatelessWidget {
           orElse: () => task).progress,
     );
 
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF007AFF).withValues(alpha: 0.1)
-              : CupertinoColors.systemBackground.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(12),
-          border: selected
-              ? Border.all(color: const Color(0xFF007AFF), width: 1.5)
-              : null,
-        ),
+    return GlassCard.wrapIfEnabled(
+      context,
+      cornerRadius: 12,
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected
+                ? const Color(0xFF007AFF).withValues(alpha: 0.1)
+                : CupertinoColors.systemBackground.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(12),
+            border: selected
+                ? Border.all(color: const Color(0xFF007AFF), width: 1.5)
+                : null,
+          ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -109,6 +113,7 @@ class FileListTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }
