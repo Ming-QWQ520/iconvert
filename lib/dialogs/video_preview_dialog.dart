@@ -1,13 +1,13 @@
-/// VideoPreviewDialog - 视频预览弹窗（缩略图大图）
+/// VideoPreviewDialog - 视频预览弹窗（直接播放）
+///
+/// 用 video_player + chewie 实现视频内嵌播放
 library;
 
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 import 'package:iconvert/models/conversion_task.dart';
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new/return_code.dart';
-import 'package:path/path.dart' as p;
 
 class VideoPreviewDialog extends StatefulWidget {
   final ConversionTask task;
@@ -19,70 +19,83 @@ class VideoPreviewDialog extends StatefulWidget {
 }
 
 class _VideoPreviewDialogState extends State<VideoPreviewDialog> {
-  String? _thumbnailPath;
+  VideoPlayerController? _videoController;
+  ChewieController? _chewieController;
   bool _loading = true;
+  String? _errorMsg;
 
   @override
   void initState() {
     super.initState();
-    _generateThumbnail();
+    _initVideo();
   }
 
-  Future<void> _generateThumbnail() async {
+  Future<void> _initVideo() async {
     try {
-      final tempDir = Directory.systemTemp;
-      final thumbDir = Directory(p.join(tempDir.path, 'iconvert_thumbs'));
-      if (!await thumbDir.exists()) {
-        await thumbDir.create(recursive: true);
-      }
-      final thumbPath = p.join(
-        thumbDir.path,
-        'video_preview_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      _videoController = VideoPlayerController.file(File(widget.task.outputPath!));
+      await _videoController!.initialize();
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoController!,
+        autoPlay: false,
+        looping: false,
+        showControls: true,
+        materialProgressColors: ChewieProgressColors(
+          playedColor: const Color(0xFF007AFF),
+          handleColor: const Color(0xFF007AFF),
+          backgroundColor: CupertinoColors.systemGrey5,
+          bufferedColor: const Color(0xFF007AFF).withValues(alpha: 0.3),
+        ),
+        cupertinoProgressColors: CupertinoProgressColors(
+          playedColor: const Color(0xFF007AFF),
+          handleColor: const Color(0xFF007AFF),
+        ),
       );
 
-      // 抽取视频第 1 秒画面
-      final cmd = '-ss 1 -i "${widget.task.outputPath}" -frames:v 1 '
-          '-vf "scale=720:-2" -q:v 3 "$thumbPath" -y';
-      final session = await FFmpegKit.execute(cmd);
-      final code = await session.getReturnCode();
-
-      if (ReturnCode.isSuccess(code) && await File(thumbPath).exists()) {
-        setState(() {
-          _thumbnailPath = thumbPath;
-          _loading = false;
-        });
-      } else {
+      if (mounted) {
         setState(() => _loading = false);
       }
     } catch (e) {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _errorMsg = '无法播放视频: $e';
+        });
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _chewieController?.dispose();
+    _videoController?.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('视频预览'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Text('完成'),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+      backgroundColor: CupertinoColors.black,
+      navigationBar: const CupertinoNavigationBar(
+        backgroundColor: CupertinoColors.black,
+        middle: Text('视频播放', style: TextStyle(color: CupertinoColors.white)),
       ),
       child: SafeArea(
         child: Column(
           children: [
             // 文件信息
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(16),
+              color: CupertinoColors.black,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     widget.task.originalName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: CupertinoColors.white),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -92,53 +105,61 @@ class _VideoPreviewDialogState extends State<VideoPreviewDialog> {
                 ],
               ),
             ),
-            // 缩略图大图
-            Expanded(child: _buildThumbnail()),
+            // 视频播放器
+            Expanded(
+              child: _buildPlayer(),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildThumbnail() {
+  Widget _buildPlayer() {
     if (_loading) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CupertinoActivityIndicator(radius: 16),
-            SizedBox(height: 12),
-            Text('生成缩略图中...', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
-          ],
-        ),
-      );
-    }
-    if (_thumbnailPath == null) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(CupertinoIcons.film, size: 64, color: CupertinoColors.systemGrey),
+            CupertinoActivityIndicator(radius: 20, color: CupertinoColors.white),
             SizedBox(height: 16),
-            Text('无法生成缩略图', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+            Text('加载视频中...', style: TextStyle(fontSize: 14, color: CupertinoColors.systemGrey)),
           ],
         ),
       );
     }
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Image.file(
-            File(_thumbnailPath!),
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Center(
-              child: Text('缩略图加载失败', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
-            ),
+
+    if (_errorMsg != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(CupertinoIcons.exclamationmark_triangle, size: 48, color: CupertinoColors.destructiveRed),
+              const SizedBox(height: 16),
+              Text(
+                _errorMsg!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: CupertinoColors.systemGrey),
+              ),
+            ],
           ),
         ),
-      ),
+      );
+    }
+
+    if (_chewieController != null) {
+      return Center(
+        child: AspectRatio(
+          aspectRatio: _videoController!.value.aspectRatio,
+          child: Chewie(controller: _chewieController!),
+        ),
+      );
+    }
+
+    return const Center(
+      child: Text('播放器初始化失败', style: TextStyle(color: CupertinoColors.systemGrey)),
     );
   }
 }
