@@ -65,6 +65,12 @@ class _EditDialogState extends State<EditDialog> {
 
   @override
   void dispose() {
+    // 清理预览临时文件
+    if (_previewPath != null) {
+      try {
+        File(_previewPath!).deleteSync();
+      } catch (_) {}
+    }
     _widthCtrl.dispose();
     _heightCtrl.dispose();
     super.dispose();
