@@ -275,6 +275,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return WithForegroundTask(
       child: CupertinoPageScaffold(
+        backgroundColor: const Color(0x00000000),
         navigationBar: CupertinoNavigationBar(
           middle: const Text('iConvert'),
           backgroundColor: CupertinoColors.transparent,
