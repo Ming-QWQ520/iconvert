@@ -3,7 +3,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
-enum MediaFileType { image, video }
+enum MediaFileType { image, video, audio }
 
 enum TaskStatus {
   waiting,
@@ -47,6 +47,13 @@ class ConversionTask {
   // SVG 矢量参数
   final double? svgScale;       // SVG 缩放倍数（默认 1.0）
 
+  // 音频参数
+  final int? sampleRate;        // 采样率（Hz，如 44100、48000）
+  final int? bitDepth;          // 量化位数（16/24/32）
+  final int? audioBitrate;      // 音频比特率（kbps，如 128、320）
+  final int? channels;          // 声道数（1=单声道, 2=立体声）
+  final bool enable3DSurround;  // 3D 环绕效果
+
   // 状态字段
   final TaskStatus status;
   final double progress;
@@ -70,6 +77,11 @@ class ConversionTask {
     this.keepTransparency = true,
     this.backgroundColor,
     this.svgScale,
+    this.sampleRate,
+    this.bitDepth,
+    this.audioBitrate,
+    this.channels,
+    this.enable3DSurround = false,
     this.status = TaskStatus.waiting,
     this.progress = 0.0,
     this.outputPath,
@@ -93,6 +105,11 @@ class ConversionTask {
     bool? keepTransparency,
     int? backgroundColor,
     double? svgScale,
+    int? sampleRate,
+    int? bitDepth,
+    int? audioBitrate,
+    int? channels,
+    bool? enable3DSurround,
     TaskStatus? status,
     double? progress,
     String? outputPath,
@@ -115,6 +132,11 @@ class ConversionTask {
       keepTransparency: keepTransparency ?? this.keepTransparency,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       svgScale: svgScale ?? this.svgScale,
+      sampleRate: sampleRate ?? this.sampleRate,
+      bitDepth: bitDepth ?? this.bitDepth,
+      audioBitrate: audioBitrate ?? this.audioBitrate,
+      channels: channels ?? this.channels,
+      enable3DSurround: enable3DSurround ?? this.enable3DSurround,
       status: status ?? this.status,
       progress: progress ?? this.progress,
       outputPath: outputPath ?? this.outputPath,
@@ -139,6 +161,11 @@ class ConversionTask {
     'keepTransparency': keepTransparency,
     'backgroundColor': backgroundColor,
     'svgScale': svgScale,
+    'sampleRate': sampleRate,
+    'bitDepth': bitDepth,
+    'audioBitrate': audioBitrate,
+    'channels': channels,
+    'enable3DSurround': enable3DSurround,
     'status': status.name,
     'progress': progress,
     'outputPath': outputPath,
@@ -163,6 +190,11 @@ class ConversionTask {
       keepTransparency: json['keepTransparency'] as bool? ?? true,
       backgroundColor: json['backgroundColor'] as int?,
       svgScale: (json['svgScale'] as num?)?.toDouble(),
+      sampleRate: json['sampleRate'] as int?,
+      bitDepth: json['bitDepth'] as int?,
+      audioBitrate: json['audioBitrate'] as int?,
+      channels: json['channels'] as int?,
+      enable3DSurround: json['enable3DSurround'] as bool? ?? false,
       status: TaskStatus.values.firstWhere((e) => e.name == json['status']),
       progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
       outputPath: json['outputPath'] as String?,
@@ -209,6 +241,24 @@ class ConversionTask {
   /// 参数摘要（用于列表显示）
   String get paramSummary {
     final parts = <String>[];
+    if (type == MediaFileType.audio) {
+      // 音频参数摘要
+      if (sampleRate != null) {
+        parts.add('${(sampleRate! / 1000).toStringAsFixed(1)}kHz');
+      }
+      if (audioBitrate != null) {
+        parts.add('${audioBitrate}kbps');
+      }
+      if (channels != null) {
+        parts.add(channels == 1 ? '单声道' : '立体声');
+      }
+      if (enable3DSurround) {
+        parts.add('3D环绕');
+      }
+      if (parts.isEmpty) parts.add('默认参数');
+      return parts.join(' · ');
+    }
+
     if (hasTrait(ImageFormatTrait.vector)) {
       parts.add('缩放 ${svgScale ?? 1.0}x');
     } else if (width != null && height != null) {
