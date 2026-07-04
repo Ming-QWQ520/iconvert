@@ -15,6 +15,7 @@ class FileService {
   static const imageExts = [
     'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp',
     'tiff', 'tif', 'ico', 'tga', 'ppm', 'pgm', 'pbm',
+    'heic', 'heif', 'svg',
   ];
   static const videoExts = [
     'mp4', 'mkv', 'mov', 'avi', 'webm', 'flv', 'wmv',
