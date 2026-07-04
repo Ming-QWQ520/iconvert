@@ -202,12 +202,18 @@ class CommandBuilder {
     }
 
     // 普通视频格式
+    final videoFilters = <String>[];
     if (task.width != null && task.height != null) {
+      videoFilters.add('scale=${task.width}:${task.height}:force_original_aspect_ratio=decrease');
+      videoFilters.add('pad=${task.width}:${task.height}:(ow-iw)/2:(oh-ih)/2');
+    }
+    // 视频帧率
+    if (task.fps != null) {
+      videoFilters.add('fps=${task.fps}');
+    }
+    if (videoFilters.isNotEmpty) {
       args.add('-vf');
-      args.add(
-        'scale=${task.width}:${task.height}:force_original_aspect_ratio=decrease,'
-        'pad=${task.width}:${task.height}:(ow-iw)/2:(oh-ih)/2',
-      );
+      args.add(videoFilters.join(','));
     }
 
     switch (fmt) {
@@ -253,18 +259,19 @@ class CommandBuilder {
     final fmt = task.outputFormat.toLowerCase();
 
     // 3D 环绕效果：左右声道单声道循环变大变小
-    // 用 pan 滤镜把左声道设为左耳+部分右耳，右声道设为右耳+部分左耳
-    // 然后用 aecho 和 tremolo 制造空间感和循环起伏
+    // 用 filter_complex 把音频分成左右两路，各自加 tremolo（不同频率制造空间感）
+    // 然后用 pan 合成立体声，效果比单 tremolo 更明显
     if (task.enable3DSurround) {
       args.add('-filter_complex');
-      // 3D 环绕：把单声道扩展为立体声，并用 tremolo 制造左右循环变化
-      // [0:a]asetpts=N/SR/TB[a]; 
-      // 用 pan 分离左右声道，再各自加 tremolo（不同频率制造空间感）
+      // [0:a]分两路：左声道用 tremolo 0.3Hz 制造左耳循环起伏，
+      // 右声道用 tremolo 0.5Hz 制造右耳循环起伏（不同频率制造空间感）
+      // 再用 aecho 加回声增强空间感
       args.add(
         '[0:a]aformat=channel_layouts=stereo,'
-        'tremolo=f=0.5:d=0.3,'
-        'aecho=0.8:0.7:20:0.3,'
-        'volume=1.2'
+        'asplit=2[l_in][r_in];'
+        '[l_in]tremolo=f=0.3:d=0.7,volume=1.3,aecho=0.8:0.6:30:0.4[l];'
+        '[r_in]tremolo=f=0.5:d=0.7,volume=1.3,aecho=0.8:0.6:40:0.4[r];'
+        '[l][r]amerge=inputs=2,aformat=channel_layouts=stereo'
       );
     }
 
