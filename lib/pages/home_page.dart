@@ -124,6 +124,11 @@ class _HomePageState extends State<HomePage> {
     final outputDir = await StorageService.getOutputDir();
     final total = model.tasks.length;
 
+    // 跟踪成功/失败计数
+    int successCount = 0;
+    int failedCount = 0;
+    int completedCount = 0;
+
     // 启动前台服务通知
     await ForegroundService.start(total: total);
 
@@ -131,10 +136,25 @@ class _HomePageState extends State<HomePage> {
       outputDir: outputDir,
       onTaskCompleted: (task) async {
         await history.add(task);
-        // 更新通知进度
+        completedCount++;
+        successCount++;
+        // 更新通知进度（含成功/失败计数）
         await ForegroundService.updateNotification(
-          completed: model.completedCount + 1,
+          completed: completedCount,
           total: total,
+          success: successCount,
+          failed: failedCount,
+          currentFileName: task.originalName,
+        );
+      },
+      onTaskFailed: (task) {
+        completedCount++;
+        failedCount++;
+        ForegroundService.updateNotification(
+          completed: completedCount,
+          total: total,
+          success: successCount,
+          failed: failedCount,
           currentFileName: task.originalName,
         );
       },
@@ -142,9 +162,11 @@ class _HomePageState extends State<HomePage> {
 
     // 完成后通知 + 3 秒后停止前台服务
     await ForegroundService.updateNotification(
-      completed: total,
+      completed: completedCount,
       total: total,
-      currentFileName: '全部完成',
+      success: successCount,
+      failed: failedCount,
+      currentFileName: null,
     );
     await Future.delayed(const Duration(seconds: 3));
     await ForegroundService.stop();
