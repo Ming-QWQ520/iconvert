@@ -71,10 +71,10 @@ class _EditDialogState extends State<EditDialog> {
 
   bool get _isImage => widget.task.type == MediaFileType.image;
 
-  /// 图片输出格式（移除 SVG，因为 FFmpeg 不支持写 SVG）
+  /// 图片输出格式（移除 GIF，因为图片转 GIF 不需要；移除 SVG，因为 FFmpeg 不支持写 SVG）
   Map<String, String> get _imageFormats => const {
     'jpg': 'JPEG', 'png': 'PNG', 'webp': 'WebP',
-    'heic': 'HEIC', 'bmp': 'BMP', 'gif': 'GIF', 'ico': 'ICO',
+    'heic': 'HEIC', 'bmp': 'BMP', 'ico': 'ICO',
   };
 
   /// 视频输出格式（增加 GIF 用于视频转 GIF 动图）
@@ -259,10 +259,13 @@ class _EditDialogState extends State<EditDialog> {
   }
 
   /// 左右对比视图
+  /// 原图和输出图都固定在中央（BoxFit.contain + center），
+  /// 用 ClipRect 裁剪原图左半部分（分隔线左侧显示原图，右侧显示输出图）
   Widget _buildCompareView() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
         final splitX = width * _splitRatio;
 
         return GestureDetector(
@@ -273,29 +276,38 @@ class _EditDialogState extends State<EditDialog> {
           },
           child: Stack(
             children: [
-              // 底层：输出图
+              // 底层：输出图（满铺固定，contain + center）
               Positioned.fill(
                 child: Image.file(
                   File(_previewPath!),
                   fit: BoxFit.contain,
+                  alignment: Alignment.center,
                   errorBuilder: (_, __, ___) => const Center(
                     child: Text('输出图加载失败', style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
                   ),
                 ),
               ),
-              // 上层：原图（左侧裁剪）
+              // 上层：原图（同样满铺固定 contain + center），但用 ClipRect 裁剪只显示分隔线左侧
               Positioned(
                 left: 0,
                 top: 0,
-                bottom: 0,
                 width: splitX,
+                height: height,
                 child: ClipRect(
-                  child: Image.file(
-                    File(widget.task.inputPath),
-                    fit: BoxFit.contain,
+                  child: Align(
                     alignment: Alignment.centerLeft,
-                    errorBuilder: (_, __, ___) => const Center(
-                      child: Text('原图加载失败', style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+                    widthFactor: splitX / width,
+                    child: SizedBox(
+                      width: width,
+                      height: height,
+                      child: Image.file(
+                        File(widget.task.inputPath),
+                        fit: BoxFit.contain,
+                        alignment: Alignment.center,
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Text('原图加载失败', style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+                        ),
+                      ),
                     ),
                   ),
                 ),
