@@ -108,10 +108,14 @@ class _EditDialogState extends State<EditDialog> {
             : _buildCurrentTask().height,
       );
 
-      final previewPath = p.join(
-        previewDir.path,
-        'preview_${DateTime.now().millisecondsSinceEpoch}.${_outputFormat}',
-      );
+      // 用固定路径（覆盖旧文件，不产生多个缓存文件）
+      final previewPath = p.join(previewDir.path, 'preview_current.${_outputFormat}');
+
+      // 删除旧的预览文件（如果存在且格式不同）
+      final oldFile = File(previewPath);
+      if (await oldFile.exists()) {
+        try { await oldFile.delete(); } catch (_) {}
+      }
 
       final command = CommandBuilder.build(task: previewTask, outputPath: previewPath);
       final session = await FFmpegKit.execute(command);
@@ -155,7 +159,8 @@ class _EditDialogState extends State<EditDialog> {
       child: CupertinoPageScaffold(
         backgroundColor: CupertinoColors.systemBackground,
         navigationBar: CupertinoNavigationBar(
-          backgroundColor: CupertinoColors.systemBackground.withValues(alpha: 0.9),
+          backgroundColor: CupertinoColors.transparent,
+          border: null,
           middle: const Text('编辑参数'),
           leading: CupertinoButton(
             padding: EdgeInsets.zero,
