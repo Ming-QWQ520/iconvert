@@ -331,16 +331,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   // 顶部 3 分区按钮
                   _buildTabBar(),
-                  // 全局进度条
-                  Consumer<ConversionModel>(
-                    builder: (context, model, _) {
-                      if (model.isConverting) {
-                        return _buildProgressBar(model.overallProgress);
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                  // 任务列表（按当前 tab 过滤）
+                  // 任务列表（按当前 tab 过滤，转换中的任务右侧显示圆圈进度）
                   Expanded(
                     child: Consumer<ConversionModel>(
                       builder: (context, model, _) {
@@ -533,35 +524,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildProgressBar(double progress) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('转换进度', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
-              Text('${(progress * 100).toInt()}%', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
-            ],
-          ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: SizedBox(
-              height: 4,
-              child: LinearProgressIndicatorCupertino(
-                value: progress,
-                backgroundColor: CupertinoColors.systemGrey5,
-                foregroundColor: const Color(0xFF007AFF),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
