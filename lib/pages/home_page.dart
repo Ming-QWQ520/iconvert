@@ -303,11 +303,6 @@ class _HomePageState extends State<HomePage> {
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      child: const Icon(CupertinoIcons.settings),
-                      onPressed: () => _navigateToSettings(),
-                    ),
                     Consumer<ConversionModel>(
                       builder: (context, model, _) {
                         if (model.isConverting) {
@@ -332,6 +327,11 @@ class _HomePageState extends State<HomePage> {
                           onPressed: currentTasks == 0 ? null : _startAll,
                         );
                       },
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      child: const Icon(CupertinoIcons.settings),
+                      onPressed: () => _navigateToSettings(),
                     ),
                   ],
                 ),
