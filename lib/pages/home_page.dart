@@ -214,8 +214,18 @@ class _HomePageState extends State<HomePage> {
 
     await model.startAll(
       outputDir: outputDir,
+      onTaskStart: (task) {
+        // 任务开始时立即更新通知（不等进度回调——图片转换瞬间完成）
+        ForegroundService.updateTaskStart(
+          completedCount: completedCount,
+          total: total,
+          currentFileName: task.originalName,
+          successCount: successCount,
+          failedCount: failedCount,
+        );
+      },
       onProgress: (task, progress) {
-        // 实时更新通知栏当前任务进度
+        // 实时更新通知栏当前任务进度（仅视频/音频有进度回调）
         ForegroundService.updateProgress(
           currentProgress: progress,
           completedCount: completedCount,
@@ -583,6 +593,15 @@ class _HomePageState extends State<HomePage> {
       if (taskIdx < 0) continue;
 
       model.updateTask(task.copyWith(status: TaskStatus.converting, progress: 0.0, errorMessage: null));
+
+      // 立即更新通知（任务开始）
+      ForegroundService.updateTaskStart(
+        completedCount: completedCount,
+        total: total,
+        currentFileName: task.originalName,
+        successCount: successCount,
+        failedCount: failedCount,
+      );
 
       try {
         final outputPath = await CommandBuilder.execute(
