@@ -1,7 +1,6 @@
 /// ForegroundService - 前台服务封装
 ///
 /// 使用 flutter_foreground_task 实现后台转码时的通知栏进度显示。
-/// 注意：调用方需用 WithForegroundTask widget 包裹页面。
 library;
 
 import 'package:flutter/foundation.dart';
@@ -10,7 +9,6 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 class ForegroundService {
   static bool _initialized = false;
 
-  /// 初始化（在 main() 中调用）
   static Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
@@ -37,10 +35,8 @@ class ForegroundService {
     );
   }
 
-  /// 启动前台服务
   static Future<void> start({required int total}) async {
     try {
-      // isRunningService 在 flutter_foreground_task 6.x 是 Future<bool> 属性，不是方法
       if (!await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.startService(
           notificationTitle: 'iConvert 正在转换',
@@ -52,25 +48,32 @@ class ForegroundService {
     }
   }
 
-  /// 更新通知文本
+  /// 更新通知文本（显示成功/失败计数）
   static Future<void> updateNotification({
     required int completed,
     required int total,
+    required int success,
+    required int failed,
     String? currentFileName,
   }) async {
     try {
-      final text = currentFileName != null
-          ? '$currentFileName ($completed/$total)'
-          : '进度: $completed/$total';
-      FlutterForegroundTask.updateService(
-        notificationText: text,
-      );
+      String text;
+      if (completed >= total) {
+        // 全部完成
+        text = '完成: $total 个 / 成功 $success / 失败 $failed';
+      } else {
+        // 进行中
+        final progress = '$completed/$total';
+        text = currentFileName != null
+            ? '正在转换: $currentFileName ($progress) 成功 $success 失败 $failed'
+            : '进度: $progress 成功 $success 失败 $failed';
+      }
+      FlutterForegroundTask.updateService(notificationText: text);
     } catch (e) {
       debugPrint('更新通知失败: $e');
     }
   }
 
-  /// 停止前台服务
   static Future<void> stop() async {
     try {
       await FlutterForegroundTask.stopService();
@@ -79,7 +82,6 @@ class ForegroundService {
     }
   }
 
-  /// 是否在运行
   static Future<bool> isRunning() async {
     return await FlutterForegroundTask.isRunningService;
   }
