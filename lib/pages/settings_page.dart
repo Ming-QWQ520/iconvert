@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:iconvert/services/storage_service.dart';
 import 'package:iconvert/dialogs/path_setting_dialog.dart';
 
@@ -166,17 +167,58 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showGithubDialog() {
+    const url = 'https://github.com/Ming-QWQ520/iconvert';
     showCupertinoDialog<void>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: const Text('GitHub 仓库'),
         content: Padding(
           padding: const EdgeInsets.only(top: 8),
-          child: SelectableText(
-            'https://github.com/Ming-QWQ520/iconvert',
-            style: const TextStyle(fontSize: 13),
+          child: Column(
+            children: [
+              const Text(
+                url,
+                style: TextStyle(fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                color: const Color(0xFFF2F2F7),
+                borderRadius: BorderRadius.circular(8),
+                minSize: 0,
+                onPressed: () {
+                  Clipboard.setData(const ClipboardData(text: url));
+                  // 复制成功提示（用 Scaffold 的方式不合适，直接关闭弹窗）
+                  Navigator.of(ctx).pop();
+                  _showToast('已复制到剪贴板');
+                },
+                child: const Text(
+                  '复制链接',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF007AFF),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('好'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showToast(String msg) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        content: Text(msg),
         actions: [
           CupertinoDialogAction(
             child: const Text('好'),
