@@ -55,13 +55,17 @@ class IConvertApp extends StatelessWidget {
         theme: const CupertinoThemeData(
           brightness: Brightness.light,
           primaryColor: Color(0xFF007AFF),
-          scaffoldBackgroundColor: Color(0x00000000),  // 透明，让背景图透出
-          barBackgroundColor: Color(0x00000000),       // 导航栏透明
+          // scaffold 背景透明，让背景图透出
+          scaffoldBackgroundColor: Color(0x00000000),
+          barBackgroundColor: Color(0x00000000),
           textTheme: CupertinoTextThemeData(primaryColor: Color(0xFF007AFF)),
         ),
-        home: const GlassBackground(
-          child: SplashScreen(),
-        ),
+        // 用 builder 全局包裹所有路由（包括 pushReplacement 后的页面）
+        // 这样背景图在所有页面都显示
+        builder: (context, child) {
+          return GlassBackground(child: child!);
+        },
+        home: const SplashScreen(),
       ),
     );
   }
