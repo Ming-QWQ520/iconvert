@@ -52,8 +52,8 @@ class _EditDialogState extends State<EditDialog> {
   Widget build(BuildContext context) {
     final isImage = widget.task.type == MediaFileType.image;
     final formats = isImage
-        ? const {'jpg': 'JPG', 'png': 'PNG', 'webp': 'WebP'}
-        : const {'mp4': 'MP4', 'mkv': 'MKV', 'webm': 'WebM'};
+        ? const {'jpg': 'JPG', 'png': 'PNG', 'webp': 'WebP', 'bmp': 'BMP', 'tiff': 'TIFF'}
+        : const {'mp4': 'MP4', 'mkv': 'MKV', 'webm': 'WebM', 'mov': 'MOV', 'avi': 'AVI', 'flv': 'FLV'};
 
     return Container(
       margin: const EdgeInsets.all(16),
