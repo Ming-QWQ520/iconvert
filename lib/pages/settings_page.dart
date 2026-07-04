@@ -57,6 +57,27 @@ class _SettingsPageState extends State<SettingsPage> {
     await _loadOutputDir();
   }
 
+  /// 清除缓存
+  Future<void> _clearCache() async {
+    // 清理临时文件
+    await FileService.cleanupTempFiles();
+
+    if (mounted) {
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          content: const Text('缓存已清除'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('好'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   Future<void> _changePickerType(FilePickerType type) async {
     if (type == FilePickerType.mtManager && !_mtManagerInstalled) {
       // 提示用户未安装 MT 管理器
@@ -164,7 +185,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(middle: Text('设置')),
+      navigationBar: const CupertinoNavigationBar(middle: Text('设置'), backgroundColor: CupertinoColors.transparent, border: null),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.only(top: 24),
@@ -188,6 +209,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   trailing: const CupertinoListTileChevron(),
                   onTap: _editPath,
+                ),
+                CupertinoListTile.notched(
+                  title: const Text('清除缓存'),
+                  subtitle: const Text(
+                    '清理临时文件和预览文件',
+                    style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+                  ),
+                  trailing: const CupertinoListTileChevron(),
+                  onTap: _clearCache,
                 ),
               ],
             ),
