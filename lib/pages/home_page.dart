@@ -442,26 +442,33 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// 顶部 3 分区切换栏
+  /// 顶部 3 分区切换栏（带任务计数）
   Widget _buildTabBar() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: CupertinoColors.systemGrey5,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          _buildTabButton('图片', MediaFileType.image, CupertinoIcons.photo),
-          _buildTabButton('音频', MediaFileType.audio, CupertinoIcons.music_note),
-          _buildTabButton('视频', MediaFileType.video, CupertinoIcons.film),
-        ],
-      ),
+    return Consumer<ConversionModel>(
+      builder: (context, model, _) {
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: CupertinoColors.systemGrey5,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              _buildTabButton('图片', MediaFileType.image, CupertinoIcons.photo,
+                model.tasks.where((t) => t.type == MediaFileType.image).length),
+              _buildTabButton('音频', MediaFileType.audio, CupertinoIcons.music_note,
+                model.tasks.where((t) => t.type == MediaFileType.audio).length),
+              _buildTabButton('视频', MediaFileType.video, CupertinoIcons.film,
+                model.tasks.where((t) => t.type == MediaFileType.video).length),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTabButton(String label, MediaFileType type, IconData icon) {
+  Widget _buildTabButton(String label, MediaFileType type, IconData icon, int count) {
     final selected = _currentTab == type;
     return Expanded(
       child: GestureDetector(
@@ -477,7 +484,26 @@ class _HomePageState extends State<HomePage> {
           ),
           child: Column(
             children: [
-              Icon(icon, size: 18, color: selected ? const Color(0xFF007AFF) : CupertinoColors.systemGrey),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 18, color: selected ? const Color(0xFF007AFF) : CupertinoColors.systemGrey),
+                  if (count > 0) ...[
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: selected ? const Color(0xFF007AFF) : CupertinoColors.systemGrey,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        count.toString(),
+                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: CupertinoColors.white),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
               const SizedBox(height: 4),
               Text(
                 label,
