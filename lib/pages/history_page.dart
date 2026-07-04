@@ -223,7 +223,7 @@ class _HistoryCard extends StatelessWidget {
         }
       },
       child: GestureDetector(
-        onTap: onTap,
+        // 整卡片长按 → 打开方式（onLongPress）
         onLongPress: onLongPress,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -234,8 +234,11 @@ class _HistoryCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 缩略图 / 媒体丢失图标
-              _buildThumbnail(),
+              // 缩略图（点击 → 预览）
+              GestureDetector(
+                onTap: onTap,
+                child: _buildThumbnail(),
+              ),
               const SizedBox(width: 12),
               // 文件信息
               Expanded(
@@ -309,24 +312,48 @@ class _HistoryCard extends StatelessWidget {
         ),
       );
     }
-    // 文件存在：显示缩略图
+    // 文件存在：显示缩略图（带预览提示图标）
     final file = File(task.outputPath!);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Image.file(
-          file,
-          fit: BoxFit.cover,
-          cacheWidth: 96,
-          cacheHeight: 96,
-          errorBuilder: (_, __, ___) => Container(
-            color: CupertinoColors.systemGrey5,
-            child: const Icon(CupertinoIcons.photo, size: 24, color: CupertinoColors.systemGrey),
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Image.file(
+              file,
+              fit: BoxFit.cover,
+              cacheWidth: 96,
+              cacheHeight: 96,
+              errorBuilder: (_, __, ___) => Container(
+                color: CupertinoColors.systemGrey5,
+                child: const Icon(CupertinoIcons.photo, size: 24, color: CupertinoColors.systemGrey),
+              ),
+            ),
           ),
         ),
-      ),
+        // 右下角预览图标（提示可点击预览）
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF007AFF).withValues(alpha: 0.9),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(6),
+                bottomRight: Radius.circular(10),
+              ),
+            ),
+            child: const Icon(
+              CupertinoIcons.eye_fill,
+              size: 10,
+              color: CupertinoColors.white,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
