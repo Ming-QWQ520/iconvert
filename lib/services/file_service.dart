@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_device_apps/flutter_device_apps.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:iconvert/models/conversion_task.dart';
@@ -108,13 +109,10 @@ class FileService {
     return _pickFromSystem(maxFiles: maxFiles);
   }
 
-  /// 检测 MT 管理器是否安装
+  /// 检测 MT 管理器是否安装（用 flutter_device_apps 检测包名 bin.mt.plus）
   static Future<bool> isMTManagerInstalled() async {
     try {
-      // 通过文件系统检查包名（简单实现）
-      // 实际应该用 package_info_plus 或 device_apps 插件
-      // 这里简化：返回 false，让 UI 提示用户
-      return false;
+      return await FlutterDeviceApps.isInstalled(mtManagerPackage);
     } catch (e) {
       return false;
     }
