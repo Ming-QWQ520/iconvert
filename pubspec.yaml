@@ -25,7 +25,6 @@ dependencies:
   just_audio: ^0.9.39
   video_player: ^2.8.7
   chewie: ^1.8.5
-  liquid_glass_easy: ^3.2.2
 
 dev_dependencies:
   flutter_test:
