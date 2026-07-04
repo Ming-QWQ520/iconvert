@@ -70,6 +70,7 @@ class ConversionModel extends ChangeNotifier {
   Future<void> startAll({
     required String outputDir,
     required Function(ConversionTask completed) onTaskCompleted,
+    Function(ConversionTask failed)? onTaskFailed,
   }) async {
     if (_isConverting) return;
     _isConverting = true;
@@ -134,11 +135,20 @@ class ConversionModel extends ChangeNotifier {
         } catch (e) {
           final current = _tasks.indexWhere((t) => t.id == taskId);
           if (current >= 0) {
-            updateTask(_tasks[current].copyWith(
+            final failedTask = _tasks[current].copyWith(
               status: TaskStatus.failed,
               errorMessage: e.toString(),
               completedAt: DateTime.now(),
-            ));
+            );
+            updateTask(failedTask);
+            // 回调通知失败
+            if (onTaskFailed != null) {
+              onTaskFailed(failedTask);
+            }
+            // 失败任务也自动移除（避免列表堆积）
+            await Future.delayed(const Duration(seconds: 2));
+            _tasks.removeWhere((t) => t.id == taskId);
+            notifyListeners();
           }
         }
       }
