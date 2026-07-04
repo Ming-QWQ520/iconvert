@@ -112,7 +112,8 @@ class GlassBackground extends StatelessWidget {
 /// 液态玻璃卡片
 ///
 /// 液态玻璃开启：LiquidGlassLens（iOS 控制中心风格折射）
-/// 液态玻璃关闭：BackdropFilter（简单模糊玻璃）
+/// 液态玻璃关闭：返回 null（保持原 UI 风格，调用方需处理）
+/// 用 GlassCard.wrapIfEnabled 替代直接使用
 class GlassCard extends StatelessWidget {
   final Widget child;
   final double cornerRadius;
@@ -127,67 +128,65 @@ class GlassCard extends StatelessWidget {
     this.margin,
   });
 
+  /// 仅在液态玻璃开启时包裹 GlassCard，否则返回原 child
+  static Widget wrapIfEnabled(
+    BuildContext context, {
+    required Widget child,
+    double cornerRadius = 20,
+    EdgeInsets? padding,
+    EdgeInsets? margin,
+  }) {
+    final glass = context.watch<GlassProvider>();
+    if (!glass.enabled) return child;
+    return GlassCard(
+      cornerRadius: cornerRadius,
+      padding: padding,
+      margin: margin,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final glass = context.watch<GlassProvider>();
 
-    if (glass.enabled) {
-      // 液态玻璃开启：LiquidGlassLens
-      return Container(
-        margin: margin,
-        child: LiquidGlassLens(
-          style: LiquidGlassStyle(
-            shape: LiquidGlassShape.continuousRoundedRectangle(
-              cornerRadius: cornerRadius,
-              borderWidth: 1.5,
-              lightIntensity: 1.1,
-              lightDirection: 39,
-              borderType: OpticalBorder(
-                borderSaturation: 0.8,
-                ambientIntensity: 5.0,
-                borderSolidity: 0.35,
-              ),
-            ),
-            appearance: const LiquidGlassAppearance(
-              color: Color(0x22FFFFFF),
-              saturation: 1.15,
-              blur: LiquidGlassBlur(sigmaX: 8, sigmaY: 8),
-            ),
-            refraction: LiquidGlassRefraction(
-              refractionType: OpticalRefraction(
-                refraction: 1.5,
-                refractionWidth: 24,
-                depth: 0.7,
-              ),
-            ),
-          ),
-          child: padding != null
-              ? Padding(padding: padding!, child: child)
-              : child,
-        ),
-      );
+    if (!glass.enabled) {
+      // 未开启：直接返回 child（保持原风格）
+      return child;
     }
 
-    // 液态玻璃关闭：BackdropFilter 模糊
+    // 开启：LiquidGlassLens
     return Container(
       margin: margin,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(cornerRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: CupertinoColors.systemBackground.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(cornerRadius),
-              border: Border.all(
-                color: CupertinoColors.white.withValues(alpha: 0.2),
-                width: 0.5,
-              ),
+      child: LiquidGlassLens(
+        style: LiquidGlassStyle(
+          shape: LiquidGlassShape.continuousRoundedRectangle(
+            cornerRadius: cornerRadius,
+            borderWidth: 1.5,
+            lightIntensity: 1.1,
+            lightDirection: 39,
+            borderType: OpticalBorder(
+              borderSaturation: 0.8,
+              ambientIntensity: 5.0,
+              borderSolidity: 0.35,
             ),
-            child: child,
+          ),
+          appearance: const LiquidGlassAppearance(
+            color: Color(0x22FFFFFF),
+            saturation: 1.15,
+            blur: LiquidGlassBlur(sigmaX: 8, sigmaY: 8),
+          ),
+          refraction: LiquidGlassRefraction(
+            refractionType: OpticalRefraction(
+              refraction: 1.5,
+              refractionWidth: 24,
+              depth: 0.7,
+            ),
           ),
         ),
+        child: padding != null
+            ? Padding(padding: padding!, child: child)
+            : child,
       ),
     );
   }
