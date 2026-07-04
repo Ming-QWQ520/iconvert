@@ -22,13 +22,17 @@ class FileService {
     'mpeg', 'mpg', 'ts', 'm2ts', 'mts', '3gp', '3g2',
     'vob', 'ogv', 'rm', 'rmvb', 'asf', 'f4v',
   ];
+  static const audioExts = [
+    'mp3', 'aac', 'wma', 'ogg', 'flac', 'wav', 'ape',
+    'm4a', 'opus', 'amr', 'aac', 'ac3', 'aiff',
+  ];
 
   /// 多选文件，返回平台文件对象列表
-  static Future<List<PlatformFile>> pickFiles({int maxFiles = 50}) async {
+  static Future<List<PlatformFile>> pickFiles({int maxFiles = 50, List<String>? allowedExtensions}) async {
     final result = await FilePicker.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: [...imageExts, ...videoExts],
+      allowedExtensions: allowedExtensions ?? [...imageExts, ...videoExts, ...audioExts],
     );
     if (result == null) return [];
     return result.files.take(maxFiles).toList();
@@ -61,6 +65,7 @@ class FileService {
   static MediaFileType inferType(String filename) {
     final ext = p.extension(filename).toLowerCase().replaceAll('.', '');
     if (imageExts.contains(ext)) return MediaFileType.image;
+    if (audioExts.contains(ext)) return MediaFileType.audio;
     return MediaFileType.video;
   }
 
