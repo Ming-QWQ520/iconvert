@@ -6,6 +6,7 @@
 library;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -85,9 +86,62 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
       if (confirmed != true) return;
+
+      // 保存设置
+      await StorageService.setLiquidGlassEnabled(true);
+      setState(() => _liquidGlass = true);
+
+      // 提示重启生效
+      if (mounted) {
+        await showCupertinoDialog<void>(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('重启生效'),
+            content: const Text('液态玻璃效果将在重启后生效，是否立即重启？'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('取消'),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+              CupertinoDialogAction(
+                child: const Text('确定'),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  // 重启 APP
+                  SystemNavigator.pop();
+                },
+              ),
+            ],
+          ),
+        );
+      }
+    } else {
+      // 关闭
+      await StorageService.setLiquidGlassEnabled(false);
+      setState(() => _liquidGlass = false);
+      if (mounted) {
+        await showCupertinoDialog<void>(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('重启生效'),
+            content: const Text('关闭液态玻璃效果将在重启后生效，是否立即重启？'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('取消'),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+              CupertinoDialogAction(
+                child: const Text('确定'),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  SystemNavigator.pop();
+                },
+              ),
+            ],
+          ),
+        );
+      }
     }
-    await StorageService.setLiquidGlassEnabled(value);
-    setState(() => _liquidGlass = value);
   }
 
   /// 选择自定义背景
@@ -342,16 +396,22 @@ class _SettingsPageState extends State<SettingsPage> {
                     additionalInfo: const Text('FFmpeg (LGPL)'),
                   ),
                   CupertinoListTile.notched(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.asset('assets/ming_avatar.png', width: 28, height: 28, fit: BoxFit.cover),
-                    ),
                     title: const Text('开发者'),
-                    additionalInfo: const Text('明 (Ming)'),
+                    additionalInfo: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.asset('assets/ming_avatar.png', width: 22, height: 22, fit: BoxFit.cover),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text('明 (Ming)'),
+                      ],
+                    ),
                   ),
                   CupertinoListTile.notched(
                     title: const Text('GitHub 仓库'),
-                    additionalInfo: const Text('Ming-QWQ520'),
+                    additionalInfo: const Text('iConvert'),
                     trailing: const CupertinoListTileChevron(),
                     onTap: _showGithubConfirm,
                   ),
@@ -391,60 +451,36 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 液态玻璃质感顶部说明卡片
   Widget _buildGlassHeader() {
-    return Container(
+    // 液态玻璃开启时文字白色，未开启时正常颜色
+    final titleColor = _liquidGlass ? CupertinoColors.white : const Color(0xFF007AFF);
+    final bodyColor = _liquidGlass ? const Color(0xCCFFFFFF) : CupertinoColors.systemGrey;
+
+    return GlassCard(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: CupertinoColors.systemBackground.withValues(alpha: 0.75),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: CupertinoColors.separator.withValues(alpha: 0.15),
-                width: 0.5,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(CupertinoIcons.cube_box, size: 22, color: titleColor),
+              const SizedBox(width: 8),
+              Text(
+                'iConvert - 格式转换器',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: titleColor),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(
-                      CupertinoIcons.cube_box,
-                      size: 22,
-                      color: Color(0xFF007AFF),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'iConvert - 格式转换器',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF007AFF),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  '• 支持 JPEG/PNG/WebP/HEIC/BMP/ICO 等图片格式\n'
-                  '• 支持 MP4/MKV/MOV/AVI/WebM/FLV/GIF 等视频格式\n'
-                  '• 批量转换，后台队列执行\n'
-                  '• 硬件编码优先，自动软件降级\n'
-                  '• 所有处理均在本地完成，不上传任何数据',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: CupertinoColors.systemGrey,
-                    height: 1.6,
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-        ),
+          const SizedBox(height: 12),
+          Text(
+            '• 支持 JPEG/PNG/WebP/HEIC/BMP/ICO 等图片格式\n'
+            '• 支持 MP4/MKV/MOV/AVI/WebM/FLV/GIF 等视频格式\n'
+            '• 批量转换，后台队列执行\n'
+            '• 硬件编码优先，自动软件降级\n'
+            '• 所有处理均在本地完成，不上传任何数据',
+            style: TextStyle(fontSize: 12, color: bodyColor, height: 1.6),
+          ),
+        ],
       ),
     );
   }
