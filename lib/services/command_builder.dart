@@ -94,66 +94,68 @@ class CommandBuilder {
     return parts.join(' ');
   }
 
-  /// 构建图片转换参数（支持 JPEG/PNG/WebP/HEIF/HEIC/BMP/TIFF/GIF/SVG/ICO）
+  /// 构建图片转换参数
+  /// 支持: JPEG/PNG/WebP/HEIC/BMP/GIF/ICO/TIFF
+  /// 注意: SVG 作为输出已移除（FFmpeg 不支持写 SVG）
   static List<String> _buildImageArgs(ConversionTask task) {
     final args = <String>[];
     final fmt = task.outputFormat.toLowerCase();
     final traits = task.imageTraits;
 
-    // 视频滤镜（SVG 矢量格式不在此处处理）
-    if (!traits.contains(ImageFormatTrait.vector)) {
-      final filters = <String>[];
+    // 构建滤镜链（GIF 特殊处理，用 filter_complex）
+    final filters = <String>[];
 
-      // 分辨率缩放
-      if (task.width != null && task.height != null) {
-        filters.add(
-          'scale=${task.width}:${task.height}:force_original_aspect_ratio=decrease,'
-          'pad=${task.width}:${task.height}:(ow-iw)/2:(oh-ih)/2',
-        );
-      }
+    // 分辨率缩放
+    if (task.width != null && task.height != null) {
+      filters.add('scale=${task.width}:${task.height}:force_original_aspect_ratio=decrease');
+      filters.add('pad=${task.width}:${task.height}:(ow-iw)/2:(oh-ih)/2:color=white');
+    }
 
-      // 透明背景填充（目标格式不支持透明 或 用户主动关闭透明）
-      final targetSupportsAlpha = traits.contains(ImageFormatTrait.transparency);
-      if (targetSupportsAlpha && !task.keepTransparency && task.backgroundColor != null) {
-        // 用 background color 填充透明区域
-        final hex = (task.backgroundColor! & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
-        filters.add('format=rgba,colorize=0:0x$hex:1.0');
-      } else if (!targetSupportsAlpha) {
-        // 目标格式本身不支持透明，强制填充白色（除非用户指定其他色）
-        final fillHex = task.backgroundColor != null
-            ? (task.backgroundColor! & 0xFFFFFF).toRadixString(16).padLeft(6, '0')
-            : 'ffffff';
-        filters.add('format=rgb24,fill=0x$fillHex');
-      }
+    // 不支持透明的格式 → 转 rgb24（丢弃 alpha 通道）
+    if (!traits.contains(ImageFormatTrait.transparency)) {
+      filters.add('format=rgb24');
+    }
+    // 支持透明但用户关闭了透明 → 也转 rgb24
+    else if (!task.keepTransparency) {
+      filters.add('format=rgb24');
+    }
 
+    // GIF 特殊处理：需要 filter_complex（调色板生成）
+    if (fmt == 'gif') {
+      // 静态图片转 GIF：简单转换即可，不需要动画参数
+      // 但可以优化调色板
+      final paletteColors = task.paletteColors ?? 256;
       if (filters.isNotEmpty) {
         args.add('-vf');
         args.add(filters.join(','));
       }
+      // GIF 调色板优化（两遍处理太慢，单遍用默认调色板）
+      args.addAll(['-loop', (task.loopCount ?? 0).toString()]);
+      return args;
+    }
+
+    // 非 GIF 格式：应用滤镜
+    if (filters.isNotEmpty) {
+      args.add('-vf');
+      args.add(filters.join(','));
     }
 
     // 格式特定编码参数
     switch (fmt) {
       case 'jpg':
       case 'jpeg':
-        // JPEG 质量 1-100 → ffmpeg q 31-2（反向）
         final q = (31 - (task.quality / 100) * 29).round().clamp(2, 31);
         args.addAll(['-q:v', q.toString()]);
         break;
       case 'webp':
-        // WebP 直接用 -qscale (1-100)
         args.addAll(['-q:v', task.quality.toString()]);
-        // 启用 lossless 模式（quality=100 时）
-        if (task.quality >= 100) {
-          args.addAll(['-lossless', '1']);
-        }
         break;
       case 'heic':
       case 'heif':
-        // HEIF 用 libx265，CRF 0-51（quality 100→CRF 0，quality 1→CRF 51）
+        // HEIF: 用 libx265 编码 + heic 容器
         final crf = (51 - (task.quality / 100) * 40).round().clamp(0, 51);
         args.addAll(['-c:v', 'libx265', '-crf', crf.toString(), '-pix_fmt', 'yuv420p']);
-        args.addAll(['-tag:v', 'hvc1']);  // iOS 兼容
+        args.addAll(['-tag:v', 'hvc1', '-f', 'heic']);
         break;
       case 'png':
         args.addAll(['-compression_level', '6']);
@@ -161,40 +163,11 @@ class CommandBuilder {
       case 'bmp':
       case 'tiff':
       case 'tif':
+        // 无损格式，FFmpeg 原生支持，无需额外参数
+        break;
       case 'ico':
-        // 无损格式，无需额外参数
-        break;
-      case 'gif':
-        // GIF 动图：调色板生成 + 帧率 + 循环
-        // 注意：完整的 GIF 动画优化需要两遍处理，这里用单遍简化版
-        final fps = task.fps ?? 10;
-        final colors = task.paletteColors ?? 256;
-        final vfFilters = <String>[];
-        if (task.width != null && task.height != null) {
-          vfFilters.add('scale=${task.width}:${task.height}');
-        }
-        vfFilters.add('fps=$fps');
-        vfFilters.add('split[s0][s1];[s0]palettegen=max_colors=$colors[p];[s1][p]paletteuse');
-        // 替换之前的 -vf
-        if (args.isNotEmpty && args.last.startsWith('scale=')) {
-          args.removeLast();  // 移除之前加的 -vf
-          args.removeLast();
-        }
-        args.add('-vf');
-        args.add(vfFilters.join(','));
-        // 循环次数（0=无限）
-        args.addAll(['-loop', (task.loopCount ?? 0).toString()]);
-        break;
-      case 'svg':
-        // SVG 是矢量格式，FFmpeg 不直接支持 SVG 输出
-        // SVG 输入时可以用 scale 缩放，但输出仍为位图
-        // 这里 SVG 作为输出格式属于"复制源文件"语义（如果输入也是 SVG）
-        // 简化处理：SVG 输出实际是位图，按 PNG 编码
-        if (task.svgScale != null && task.svgScale != 1.0) {
-          args.add('-vf');
-          args.add('scale=iw*${task.svgScale}:ih*${task.svgScale}');
-        }
-        args.addAll(['-compression_level', '6']);
+        // ICO: 用 PNG 编码写入 ICO 容器
+        args.addAll(['-c:v', 'png']);
         break;
     }
 
@@ -203,7 +176,26 @@ class CommandBuilder {
 
   static List<String> _buildVideoArgs(ConversionTask task) {
     final args = <String>[];
+    final fmt = task.outputFormat.toLowerCase();
 
+    // GIF 视频：需要 filter_complex 做调色板 + 帧率
+    if (fmt == 'gif') {
+      final fps = task.fps ?? 10;
+      final colors = task.paletteColors ?? 256;
+      final baseFilters = <String>['fps=$fps'];
+      if (task.width != null && task.height != null) {
+        baseFilters.add('scale=${task.width}:${task.height}');
+      }
+      final filterStr = '${baseFilters.join(',')},split[s0][s1];'
+          '[s0]palettegen=max_colors=$colors[p];'
+          '[s1][p]paletteuse';
+      args.add('-filter_complex');
+      args.add(filterStr);
+      args.addAll(['-loop', (task.loopCount ?? 0).toString()]);
+      return args;
+    }
+
+    // 普通视频格式
     if (task.width != null && task.height != null) {
       args.add('-vf');
       args.add(
@@ -212,7 +204,7 @@ class CommandBuilder {
       );
     }
 
-    switch (task.outputFormat.toLowerCase()) {
+    switch (fmt) {
       case 'mp4':
         args.addAll(['-c:v', 'h264_mediacodec', '-b:v', _videoBitrate(task)]);
         args.addAll(['-c:a', 'aac', '-b:a', '128k']);
