@@ -641,9 +641,12 @@ class _HomePageState extends State<HomePage> {
         failedCount++;
       }
 
-      await ForegroundService.updateNotification(
-        completed: completedCount, total: total, success: successCount, failed: failedCount,
-        currentFileName: task.originalName,
+      await ForegroundService.updateTaskDone(
+        completedCount: completedCount,
+        total: total,
+        fileName: task.originalName,
+        successCount: successCount,
+        failedCount: failedCount,
       );
 
       await Future.delayed(const Duration(milliseconds: 800));
@@ -651,7 +654,11 @@ class _HomePageState extends State<HomePage> {
       _thumbnailPaths.remove(task.id);
     }
 
-    await ForegroundService.updateNotification(completed: completedCount, total: total, success: successCount, failed: failedCount);
+    await ForegroundService.showSummary(
+      total: total,
+      successCount: successCount,
+      failedCount: failedCount,
+    );
     await Future.delayed(const Duration(seconds: 3));
     await ForegroundService.stop();
   }
