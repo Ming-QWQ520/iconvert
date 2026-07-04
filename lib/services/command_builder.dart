@@ -1,7 +1,4 @@
 /// CommandBuilder - FFmpeg 命令构建与执行
-///
-/// 根据任务类型拼接 FFmpeg 参数，调用 ffmpeg_kit_flutter 执行。
-/// 优先硬件编码，失败回退软件编码。
 library;
 
 import 'dart:async';
@@ -22,7 +19,6 @@ class CommandBuilder {
     _currentSession = null;
   }
 
-  /// 执行转换，返回输出文件绝对路径
   static Future<String> execute({
     required ConversionTask task,
     required String outputDir,
@@ -121,6 +117,11 @@ class CommandBuilder {
       case 'png':
         args.addAll(['-compression_level', '6']);
         break;
+      case 'bmp':
+      case 'tiff':
+      case 'tif':
+        // BMP/TIFF 无损，无需额外参数
+        break;
     }
 
     return args;
@@ -152,6 +153,13 @@ class CommandBuilder {
         args.addAll(['-c:v', 'libvpx-vp9', '-crf', _vp9Crf(task)]);
         args.addAll(['-c:a', 'libopus', '-b:a', '128k']);
         break;
+      case 'mov':
+      case 'avi':
+      case 'flv':
+        // MOV/AVI/FLV 用 H.264 + AAC 通用兼容
+        args.addAll(['-c:v', 'libopenh264', '-b:v', _videoBitrate(task)]);
+        args.addAll(['-c:a', 'aac', '-b:a', '128k']);
+        break;
     }
 
     return args;
@@ -178,7 +186,6 @@ class CommandBuilder {
   }
 }
 
-// 顶层常量：避免在 hot reload 时重复初始化
 Future<void> _warmupFFmpeg() async {
   try {
     await FFmpegKitConfig.init();
@@ -187,5 +194,4 @@ Future<void> _warmupFFmpeg() async {
   }
 }
 
-/// 暴露给外部调用的预热方法
 Future<void> warmupFFmpeg() => _warmupFFmpeg();
