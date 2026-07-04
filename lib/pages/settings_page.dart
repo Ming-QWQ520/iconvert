@@ -189,15 +189,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   trailing: const CupertinoListTileChevron(),
                   onTap: _editPath,
                 ),
-                CupertinoListTile.notched(
-                  title: const Text('文件选择器'),
-                  subtitle: Text(
-                    _pickerTypeLabel,
-                    style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
-                  ),
-                  trailing: const CupertinoListTileChevron(),
-                  onTap: _showPickerTypeDialog,
-                ),
               ],
             ),
 
