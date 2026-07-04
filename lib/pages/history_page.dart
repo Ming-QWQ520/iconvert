@@ -343,9 +343,10 @@ class _HistoryCard extends StatelessWidget {
           return false;
         }
       },
-      child: _CardGestureHandler(
+      child: GestureDetector(
         onTap: onTap,
         onLongPress: onLongPress,
+        behavior: HitTestBehavior.translucent,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           padding: const EdgeInsets.all(12),
