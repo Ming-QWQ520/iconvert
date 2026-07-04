@@ -276,6 +276,8 @@ class _HomePageState extends State<HomePage> {
       child: CupertinoPageScaffold(
         navigationBar: CupertinoNavigationBar(
           middle: const Text('iConvert'),
+          backgroundColor: CupertinoColors.transparent,
+          border: null,
           leading: CupertinoButton(
             padding: EdgeInsets.zero,
             child: const Icon(CupertinoIcons.list_bullet),
