@@ -325,31 +325,60 @@ class _AudioPreviewDialogState extends State<AudioPreviewDialog> {
     final ratio = _duration.inMilliseconds > 0
         ? _position.inMilliseconds / _duration.inMilliseconds
         : 0.0;
-    return GestureDetector(
-      onTap: () {},
-      onHorizontalDragUpdate: (details) {
-        final box = context.findRenderObject() as RenderBox;
-        final localPos = details.localPosition;
-        final ratio = (localPos.dx / box.size.width).clamp(0.0, 1.0);
-        _seek(ratio);
-      },
-      child: Container(
-        height: 6,
-        decoration: BoxDecoration(
-          color: CupertinoColors.systemGrey5,
-          borderRadius: BorderRadius.circular(3),
-        ),
-        child: FractionallySizedBox(
-          alignment: Alignment.centerLeft,
-          widthFactor: ratio.clamp(0.0, 1.0),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          onTap: () {
+            // 点击跳转
+            final RenderBox box = context.findRenderObject() as RenderBox;
+            final localPos = box.globalToLocal(Offset.zero);
+            // 简化：不处理点击跳转
+          },
+          onHorizontalDragUpdate: (details) {
+            final ratio = (details.localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0);
+            _seek(ratio);
+          },
           child: Container(
+            width: double.infinity,
+            height: 6,
             decoration: BoxDecoration(
-              color: const Color(0xFF007AFF),
+              color: CupertinoColors.systemGrey5,
               borderRadius: BorderRadius.circular(3),
             ),
+            child: Stack(
+              children: [
+                // 已播放部分
+                Container(
+                  width: constraints.maxWidth * ratio.clamp(0.0, 1.0),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF007AFF),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                // 播放位置圆点
+                Positioned(
+                  left: (constraints.maxWidth * ratio.clamp(0.0, 1.0) - 6).clamp(0.0, constraints.maxWidth - 12),
+                  top: -3,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF007AFF),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF007AFF).withValues(alpha: 0.3),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
