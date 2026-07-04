@@ -9,6 +9,7 @@ library;
 
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show CircularProgressIndicator;
 import 'package:provider/provider.dart';
 import 'package:iconvert/models/conversion_model.dart';
 import 'package:iconvert/models/conversion_task.dart';
@@ -202,10 +203,33 @@ class _StatusIndicator extends StatelessWidget {
       case TaskStatus.waiting:
         return const Icon(CupertinoIcons.clock, color: CupertinoColors.systemGrey, size: 22);
       case TaskStatus.converting:
+        // 圆圈进度指示器（带百分比）
         return SizedBox(
-          width: 24,
-          height: 24,
-          child: CupertinoActivityIndicator.partiallyRevealed(progress: progress.clamp(0.1, 1.0)),
+          width: 28,
+          height: 28,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  value: progress.clamp(0.01, 0.99),
+                  strokeWidth: 2.5,
+                  backgroundColor: CupertinoColors.systemGrey5,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF007AFF)),
+                ),
+              ),
+              Text(
+                '${(progress * 100).toInt()}',
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF007AFF),
+                ),
+              ),
+            ],
+          ),
         );
       case TaskStatus.completed:
         return const Icon(CupertinoIcons.checkmark_circle_fill, color: CupertinoColors.activeGreen, size: 22);
