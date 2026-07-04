@@ -47,6 +47,23 @@ class ForegroundService {
     }
   }
 
+  /// 任务开始转换时更新通知（不等进度回调，图片转换瞬间完成无进度）
+  static Future<void> updateTaskStart({
+    required int completedCount,
+    required int total,
+    required String currentFileName,
+    required int successCount,
+    required int failedCount,
+  }) async {
+    try {
+      final remaining = total - completedCount - 1;
+      final text = '正在转换: $currentFileName · 剩余 $remaining 个 · 成功 $successCount 失败 $failedCount';
+      FlutterForegroundTask.updateService(notificationText: text);
+    } catch (e) {
+      debugPrint('更新通知失败: $e');
+    }
+  }
+
   /// 更新通知：显示当前任务进度
   static Future<void> updateProgress({
     required double currentProgress,
