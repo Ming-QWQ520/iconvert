@@ -1,5 +1,5 @@
 name: iconvert
-description: "iConvert - 全格式转换器（侧载版）"
+description: "iConvert - 全格式转换器侧载版"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -10,28 +10,13 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-
-  # 转换引擎 - LGPL，可闭源商用（社区维护版本，原 arthenica 已下线）
   ffmpeg_kit_flutter_new: ^4.3.2
-
-  # 状态管理
   provider: ^6.1.1
-
-  # 文件选择（SAF）
   file_picker: ^11.0.0
-
-  # 权限
   permission_handler: ^11.3.0
-
-  # 前台服务（后台转码）
   flutter_foreground_task: ^6.1.0
-
-  # 本地存储
   shared_preferences: ^2.2.2
-
-  # 路径处理工具
   path: ^1.9.0
-
 
 dev_dependencies:
   flutter_test:
