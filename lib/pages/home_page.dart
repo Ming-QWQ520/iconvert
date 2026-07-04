@@ -17,6 +17,7 @@ import 'package:iconvert/widgets/file_list_tile.dart';
 import 'package:iconvert/dialogs/edit_dialog.dart';
 import 'package:iconvert/dialogs/permission_dialog.dart';
 import 'package:iconvert/dialogs/path_setting_dialog.dart';
+import 'package:iconvert/dialogs/remove_from_queue_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -31,13 +32,39 @@ class _HomePageState extends State<HomePage> {
   // 多选模式
   bool _selectionMode = false;
   final Set<String> _selectedTaskIds = {};
+  // 用于监听 ConversionModel 变化的引用
+  late final ConversionModel _conversionModel;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkFirstRunWizard();
+      _conversionModel = context.read<ConversionModel>();
+      _conversionModel.addListener(_onTasksChanged);
+      // 初始化时为已有任务生成缩略图
+      _generateMissingThumbnails();
     });
+  }
+
+  @override
+  void dispose() {
+    _conversionModel.removeListener(_onTasksChanged);
+    super.dispose();
+  }
+
+  /// ConversionModel 变化回调：检查新任务并生成缩略图
+  void _onTasksChanged() {
+    _generateMissingThumbnails();
+  }
+
+  /// 为没有缩略图的任务生成缩略图
+  void _generateMissingThumbnails() {
+    for (final task in _conversionModel.tasks) {
+      if (!_thumbnailPaths.containsKey(task.id)) {
+        _generateThumbnail(task);
+      }
+    }
   }
 
   /// 首次设置向导：检测权限和输出路径
@@ -286,9 +313,12 @@ class _HomePageState extends State<HomePage> {
                                 onTap: () => _toggleSelection(task.id),
                               );
                             }
-                            // 非选择模式：左滑删除
+                            // 非选择模式：只允许左滑（endToStart）删除
                             return Dismissible(
                               key: ValueKey(task.id),
+                              // 仅左滑（endToStart）方向
+                              direction: DismissDirection.endToStart,
+                              // 左滑时显示的背景（靠右对齐的删除按钮）
                               background: Container(
                                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                                 decoration: BoxDecoration(
@@ -297,23 +327,26 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 alignment: Alignment.centerRight,
                                 padding: const EdgeInsets.only(right: 20),
-                                child: const Icon(CupertinoIcons.delete, color: CupertinoColors.white),
-                              ),
-                              secondaryBackground: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: CupertinoColors.destructiveRed,
-                                  borderRadius: BorderRadius.circular(12),
+                                child: const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(CupertinoIcons.delete, color: CupertinoColors.white, size: 22),
+                                    SizedBox(height: 2),
+                                    Text('移除', style: TextStyle(color: CupertinoColors.white, fontSize: 11, fontWeight: FontWeight.w500)),
+                                  ],
                                 ),
-                                alignment: Alignment.centerLeft,
-                                padding: const EdgeInsets.only(left: 20),
-                                child: const Icon(CupertinoIcons.delete, color: CupertinoColors.white),
                               ),
                               confirmDismiss: (direction) async {
-                                // 左滑或右滑都删除
-                                model.removeTask(task.id);
-                                _thumbnailPaths.remove(task.id);
-                                return false;  // 已手动处理
+                                // 液态玻璃确认弹窗
+                                final confirmed = await RemoveFromQueueDialog.show(
+                                  context,
+                                  fileName: task.originalName,
+                                );
+                                if (confirmed) {
+                                  model.removeTask(task.id);
+                                  _thumbnailPaths.remove(task.id);
+                                }
+                                return false;  // 不自动关闭，手动处理
                               },
                               child: FileListTile(
                                 task: task,
