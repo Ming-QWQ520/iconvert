@@ -23,6 +23,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _outputDir = StorageService.defaultOutputDir;
   FilePickerType _pickerType = FilePickerType.gallery;
   bool _mtManagerInstalled = false;
+  bool _liquidGlass = false;
 
   @override
   void initState() {
@@ -34,11 +35,13 @@ class _SettingsPageState extends State<SettingsPage> {
     final dir = await StorageService.getOutputDir();
     final pickerType = await StorageService.getFilePickerType();
     final mtInstalled = await FileService.isMTManagerInstalled();
+    final liquidGlass = await StorageService.isLiquidGlassEnabled();
     if (mounted) {
       setState(() {
         _outputDir = dir;
         _pickerType = pickerType;
         _mtManagerInstalled = mtInstalled;
+        _liquidGlass = liquidGlass;
       });
     }
   }
@@ -55,6 +58,33 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (_) => const PathSettingDialog(),
     );
     await _loadOutputDir();
+  }
+
+  /// 切换液态玻璃开关
+  Future<void> _toggleLiquidGlass(bool value) async {
+    if (value) {
+      // 开启前提示性能警告
+      final confirmed = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('开启液态玻璃'),
+          content: const Text('全 UI 使用液态玻璃效果可能影响性能，请谨慎考虑。'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('还是算了'),
+              onPressed: () => Navigator.of(ctx).pop(false),
+            ),
+            CupertinoDialogAction(
+              child: const Text('冲!'),
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    await StorageService.setLiquidGlassEnabled(value);
+    setState(() => _liquidGlass = value);
   }
 
   /// 清除缓存
@@ -218,6 +248,17 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   trailing: const CupertinoListTileChevron(),
                   onTap: _clearCache,
+                ),
+                CupertinoListTile.notched(
+                  title: const Text('全 UI 液态玻璃'),
+                  subtitle: const Text(
+                    '开启后所有界面使用液态玻璃效果',
+                    style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+                  ),
+                  trailing: CupertinoSwitch(
+                    value: _liquidGlass,
+                    onChanged: _toggleLiquidGlass,
+                  ),
                 ),
               ],
             ),
