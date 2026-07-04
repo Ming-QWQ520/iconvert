@@ -13,6 +13,15 @@ enum TaskStatus {
   canceled,
 }
 
+/// 图片格式的特性分类（用于决定参数面板显示哪些选项）
+enum ImageFormatTrait {
+  lossy,        // 有损格式（JPEG/WebP/HEIC）→ 显示质量滑块
+  lossless,     // 无损格式（PNG/BMP/TIFF）→ 不显示质量
+  animation,    // 动图格式（GIF/APNG）→ 显示帧率/循环/调色板
+  transparency, // 支持透明（PNG/WebP/GIF/SVG）→ 显示透明选项
+  vector,       // 矢量格式（SVG）→ 显示缩放倍数而非分辨率
+}
+
 @immutable
 class ConversionTask {
   final String id;
@@ -20,9 +29,25 @@ class ConversionTask {
   final String originalName;
   final MediaFileType type;
   final String outputFormat;
+
+  // 通用参数
   final int? width;
   final int? height;
-  final int quality;
+  final int quality;            // 1-100，用于有损格式
+
+  // 动图参数（GIF/APNG）
+  final int? fps;               // 帧率（仅动图，默认 10）
+  final int? loopCount;         // 循环次数（0=无限循环，默认 0）
+  final int? paletteColors;     // 调色板颜色数（默认 256）
+
+  // 透明格式参数
+  final bool keepTransparency;  // 是否保留透明（默认 true）
+  final int? backgroundColor;   // 不保留透明时的填充色（ARGB 32位整数，如 0xFFFFFFFF）
+
+  // SVG 矢量参数
+  final double? svgScale;       // SVG 缩放倍数（默认 1.0）
+
+  // 状态字段
   final TaskStatus status;
   final double progress;
   final String? outputPath;
@@ -39,6 +64,12 @@ class ConversionTask {
     this.width,
     this.height,
     required this.quality,
+    this.fps,
+    this.loopCount,
+    this.paletteColors,
+    this.keepTransparency = true,
+    this.backgroundColor,
+    this.svgScale,
     this.status = TaskStatus.waiting,
     this.progress = 0.0,
     this.outputPath,
@@ -56,6 +87,12 @@ class ConversionTask {
     int? width,
     int? height,
     int? quality,
+    int? fps,
+    int? loopCount,
+    int? paletteColors,
+    bool? keepTransparency,
+    int? backgroundColor,
+    double? svgScale,
     TaskStatus? status,
     double? progress,
     String? outputPath,
@@ -72,6 +109,12 @@ class ConversionTask {
       width: width ?? this.width,
       height: height ?? this.height,
       quality: quality ?? this.quality,
+      fps: fps ?? this.fps,
+      loopCount: loopCount ?? this.loopCount,
+      paletteColors: paletteColors ?? this.paletteColors,
+      keepTransparency: keepTransparency ?? this.keepTransparency,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+      svgScale: svgScale ?? this.svgScale,
       status: status ?? this.status,
       progress: progress ?? this.progress,
       outputPath: outputPath ?? this.outputPath,
@@ -90,6 +133,12 @@ class ConversionTask {
     'width': width,
     'height': height,
     'quality': quality,
+    'fps': fps,
+    'loopCount': loopCount,
+    'paletteColors': paletteColors,
+    'keepTransparency': keepTransparency,
+    'backgroundColor': backgroundColor,
+    'svgScale': svgScale,
     'status': status.name,
     'progress': progress,
     'outputPath': outputPath,
@@ -108,6 +157,12 @@ class ConversionTask {
       width: json['width'] as int?,
       height: json['height'] as int?,
       quality: json['quality'] as int,
+      fps: json['fps'] as int?,
+      loopCount: json['loopCount'] as int?,
+      paletteColors: json['paletteColors'] as int?,
+      keepTransparency: json['keepTransparency'] as bool? ?? true,
+      backgroundColor: json['backgroundColor'] as int?,
+      svgScale: (json['svgScale'] as num?)?.toDouble(),
       status: TaskStatus.values.firstWhere((e) => e.name == json['status']),
       progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
       outputPath: json['outputPath'] as String?,
@@ -117,6 +172,59 @@ class ConversionTask {
           ? DateTime.parse(json['completedAt'] as String)
           : null,
     );
+  }
+
+  /// 根据输出格式获取特性列表
+  List<ImageFormatTrait> get imageTraits {
+    switch (outputFormat.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return [ImageFormatTrait.lossy];
+      case 'webp':
+        return [ImageFormatTrait.lossy, ImageFormatTrait.transparency];
+      case 'heic':
+      case 'heif':
+        return [ImageFormatTrait.lossy, ImageFormatTrait.transparency];
+      case 'png':
+        return [ImageFormatTrait.lossless, ImageFormatTrait.transparency];
+      case 'bmp':
+      case 'tiff':
+      case 'tif':
+      case 'ico':
+        return [ImageFormatTrait.lossless];
+      case 'gif':
+        return [ImageFormatTrait.lossy, ImageFormatTrait.animation, ImageFormatTrait.transparency];
+      case 'svg':
+        return [ImageFormatTrait.vector, ImageFormatTrait.transparency];
+      default:
+        return [ImageFormatTrait.lossy];
+    }
+  }
+
+  /// 是否有某特性
+  bool hasTrait(ImageFormatTrait trait) => imageTraits.contains(trait);
+
+  /// 参数摘要（用于列表显示）
+  String get paramSummary {
+    final parts = <String>[];
+    if (hasTrait(ImageFormatTrait.vector)) {
+      parts.add('缩放 ${svgScale ?? 1.0}x');
+    } else if (width != null && height != null) {
+      parts.add('${width}×${height}');
+    } else {
+      parts.add('原始分辨率');
+    }
+    if (hasTrait(ImageFormatTrait.lossy)) {
+      parts.add('Q$quality');
+    }
+    if (hasTrait(ImageFormatTrait.animation)) {
+      parts.add('${fps ?? 10}fps');
+      parts.add('循环 ${loopCount == 0 ? '∞' : (loopCount ?? 0)}');
+    }
+    if (hasTrait(ImageFormatTrait.transparency) && !keepTransparency) {
+      parts.add('背景填充');
+    }
+    return parts.join(' · ');
   }
 
   String get statusText {
