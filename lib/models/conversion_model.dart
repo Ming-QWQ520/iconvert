@@ -70,6 +70,7 @@ class ConversionModel extends ChangeNotifier {
   Future<void> startAll({
     required String outputDir,
     required Function(ConversionTask completed) onTaskCompleted,
+    Function(ConversionTask task)? onTaskStart,
     Function(ConversionTask task, double progress)? onProgress,
     Function(ConversionTask failed)? onTaskFailed,
   }) async {
@@ -100,6 +101,11 @@ class ConversionModel extends ChangeNotifier {
           progress: 0.0,
           errorMessage: null,
         ));
+
+        // 立即通知外部（任务开始，不等进度回调——图片转换瞬间完成）
+        if (onTaskStart != null) {
+          onTaskStart(_tasks[taskIdx]);
+        }
 
         try {
           final outputPath = await CommandBuilder.execute(
