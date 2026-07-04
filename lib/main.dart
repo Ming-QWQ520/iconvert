@@ -10,6 +10,7 @@ import 'package:iconvert/models/conversion_model.dart';
 import 'package:iconvert/models/history_model.dart';
 import 'package:iconvert/pages/splash_page.dart';
 import 'package:iconvert/services/foreground_service.dart';
+import 'package:iconvert/services/file_service.dart';
 
 /// 全局快捷动作回调（从 quick_actions 触发）
 /// 在 splash_page 中检查此标志，如果为 true 则自动跳过启动页直接进入主页
@@ -23,6 +24,9 @@ void main() {
 
   // 初始化前台服务
   ForegroundService.init();
+
+  // 清理上次运行遗留的临时文件（避免缓存爆炸）
+  FileService.cleanupTempFiles();
 
   // 初始化桌面快捷动作
   const quickActions = QuickActions();
