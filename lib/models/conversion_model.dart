@@ -64,6 +64,9 @@ class ConversionModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 启动全部转换（串行执行）
+  /// onTaskCompleted: 任务完成后的回调（已加入历史记录）
+  /// onTaskAutoRemoved: 任务从列表自动移除后的回调（用于刷新 UI）
   Future<void> startAll({
     required String outputDir,
     required Function(ConversionTask completed) onTaskCompleted,
@@ -74,12 +77,22 @@ class ConversionModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      for (int i = 0; i < _tasks.length; i++) {
+      // 复制一份任务 ID 列表，因为转换过程中 _tasks 会被修改
+      final taskIds = _tasks
+          .where((t) => t.status != TaskStatus.completed)
+          .map((t) => t.id)
+          .toList();
+
+      for (final taskId in taskIds) {
         if (_cancelRequested) break;
 
-        final task = _tasks[i];
+        // 查找当前任务（列表可能已变化）
+        final taskIdx = _tasks.indexWhere((t) => t.id == taskId);
+        if (taskIdx < 0) continue;  // 已被移除
+        final task = _tasks[taskIdx];
         if (task.status == TaskStatus.completed) continue;
 
+        // 标记为转换中
         updateTask(task.copyWith(
           status: TaskStatus.converting,
           progress: 0.0,
@@ -88,12 +101,14 @@ class ConversionModel extends ChangeNotifier {
 
         try {
           final outputPath = await CommandBuilder.execute(
-            task: _tasks[i],
+            task: _tasks[taskIdx],
             outputDir: outputDir,
             onProgress: (progress) {
-              if ((progress - _tasks[i].progress).abs() >= 0.05 ||
+              final current = _tasks.indexWhere((t) => t.id == taskId);
+              if (current < 0) return;
+              if ((progress - _tasks[current].progress).abs() >= 0.05 ||
                   progress >= 1.0) {
-                updateTask(_tasks[i].copyWith(
+                updateTask(_tasks[current].copyWith(
                   status: TaskStatus.converting,
                   progress: progress,
                 ));
@@ -101,20 +116,30 @@ class ConversionModel extends ChangeNotifier {
             },
           );
 
-          final completed = _tasks[i].copyWith(
+          final completed = _tasks[taskIdx].copyWith(
             status: TaskStatus.completed,
             progress: 1.0,
             outputPath: outputPath,
             completedAt: DateTime.now(),
           );
-          updateTask(completed);
+
+          // 先回调（加入历史记录）
           onTaskCompleted(completed);
+
+          // 短暂延迟让用户看到"已完成"状态，然后自动从列表移除
+          await Future.delayed(const Duration(milliseconds: 800));
+          // 自动移除（只删记录，不删文件）
+          _tasks.removeWhere((t) => t.id == taskId);
+          notifyListeners();
         } catch (e) {
-          updateTask(_tasks[i].copyWith(
-            status: TaskStatus.failed,
-            errorMessage: e.toString(),
-            completedAt: DateTime.now(),
-          ));
+          final current = _tasks.indexWhere((t) => t.id == taskId);
+          if (current >= 0) {
+            updateTask(_tasks[current].copyWith(
+              status: TaskStatus.failed,
+              errorMessage: e.toString(),
+              completedAt: DateTime.now(),
+            ));
+          }
         }
       }
     } finally {
