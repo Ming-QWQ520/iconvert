@@ -1,13 +1,10 @@
 /// HistoryPage - 历史记录页
 ///
 /// 功能：
-/// - 图片预览缩略图（输出文件）
-/// - 文件大小显示
-/// - 媒体丢失检测（红色感叹号图标）
-/// - 点击图片 → 打开预览对比
-/// - 长按卡片 → 原生"打开方式"选择器
-/// - 左滑 → 删除（液态玻璃确认弹窗）
-/// - 右滑 → 重新转换（加入转换队列）
+/// - 批量选择删除（左上角全选按钮）
+/// - 图片预览缩略图、文件大小、媒体丢失检测
+/// - 长按调起原生"打开方式"选择器
+/// - 左滑删除、右滑重新转换
 library;
 
 import 'dart:io';
@@ -30,9 +27,10 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
-  // 缓存文件存在状态和大小（避免每次 build 都检查）
   final Map<String, bool> _fileExists = {};
   final Map<String, int> _fileSizes = {};
+  bool _selectionMode = false;
+  final Set<String> _selectedIds = {};
 
   @override
   void initState() {
@@ -48,11 +46,7 @@ class _HistoryPageState extends State<HistoryPage> {
         final exists = await file.exists();
         int? size;
         if (exists) {
-          try {
-            size = await file.length();
-          } catch (e) {
-            size = null;
-          }
+          try { size = await file.length(); } catch (_) {}
         }
         if (mounted) {
           setState(() {
@@ -64,10 +58,106 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
+  void _enterSelectionMode() {
+    setState(() => _selectionMode = true);
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleSelect(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+        if (_selectedIds.isEmpty) _selectionMode = false;
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _toggleSelectAll() {
+    final history = context.read<HistoryModel>();
+    setState(() {
+      if (_selectedIds.length == history.history.length) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds.clear();
+        for (final task in history.history) {
+          _selectedIds.add(task.id);
+        }
+      }
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    final history = context.read<HistoryModel>();
+    final action = await DeleteConfirmDialog.show(
+      context,
+      fileName: '${_selectedIds.length} 个文件',
+    );
+    if (action == DeleteAction.removeRecordOnly) {
+      for (final id in _selectedIds) {
+        await history.removeRecord(id);
+      }
+      _exitSelectionMode();
+    } else if (action == DeleteAction.removeBoth) {
+      for (final id in _selectedIds) {
+        await history.removeRecordAndFile(id);
+      }
+      _exitSelectionMode();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(middle: Text('历史记录')),
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(_selectionMode ? '已选 ${_selectedIds.length} 项' : '历史记录'),
+        backgroundColor: CupertinoColors.transparent,
+        border: null,
+        leading: _selectionMode
+            ? CupertinoButton(
+                padding: EdgeInsets.zero,
+                child: const Text('取消'),
+                onPressed: _exitSelectionMode,
+              )
+            : CupertinoButton(
+                padding: EdgeInsets.zero,
+                child: const Text('全选'),
+                onPressed: () {
+                  _enterSelectionMode();
+                  _toggleSelectAll();
+                },
+              ),
+        trailing: _selectionMode
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: Text(
+                      _selectedIds.length == context.read<HistoryModel>().history.length && _selectedIds.isNotEmpty
+                          ? '取消全选'
+                          : '全选',
+                      style: const TextStyle(color: Color(0xFF007AFF)),
+                    ),
+                    onPressed: _toggleSelectAll,
+                  ),
+                  const SizedBox(width: 8),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: const Text('删除', style: TextStyle(color: CupertinoColors.destructiveRed)),
+                    onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
+                  ),
+                ],
+              )
+            : null,
+      ),
       child: SafeArea(
         child: Consumer<HistoryModel>(
           builder: (context, model, _) {
@@ -77,13 +167,30 @@ class _HistoryPageState extends State<HistoryPage> {
             return ListView.builder(
               padding: const EdgeInsets.only(top: 8, bottom: 16),
               itemCount: model.history.length,
-              itemBuilder: (context, index) => _HistoryCard(
-                task: model.history[index],
-                fileExists: _fileExists[model.history[index].id] ?? true,
-                fileSize: _fileSizes[model.history[index].id],
-                onTap: () => _openPreview(model.history[index]),
-                onLongPress: () => _openWith(model.history[index]),
-              ),
+              itemBuilder: (context, index) {
+                final task = model.history[index];
+                final isSelected = _selectedIds.contains(task.id);
+                return _HistoryCard(
+                  task: task,
+                  fileExists: _fileExists[task.id] ?? true,
+                  fileSize: _fileSizes[task.id],
+                  selectionMode: _selectionMode,
+                  selected: isSelected,
+                  onTap: () {
+                    if (_selectionMode) {
+                      _toggleSelect(task.id);
+                    } else {
+                      _openPreview(task);
+                    }
+                  },
+                  onLongPress: () {
+                    if (!_selectionMode) {
+                      _enterSelectionMode();
+                      _toggleSelect(task.id);
+                    }
+                  },
+                );
+              },
             );
           },
         ),
@@ -122,21 +229,17 @@ class _HistoryPageState extends State<HistoryPage> {
       );
       return;
     }
-    // 根据媒体类型选择预览方式
     if (task.type == MediaFileType.image) {
-      // 图片用 PreviewDialog 对比预览
       showCupertinoModalPopup<void>(
         context: context,
         builder: (_) => PreviewDialog(task: task),
       );
     } else if (task.type == MediaFileType.audio) {
-      // 音频用波形预览弹窗
       showCupertinoModalPopup<void>(
         context: context,
         builder: (_) => AudioPreviewDialog(task: task),
       );
     } else {
-      // 视频用缩略图大图预览
       showCupertinoModalPopup<void>(
         context: context,
         builder: (_) => VideoPreviewDialog(task: task),
@@ -162,26 +265,7 @@ class _HistoryPageState extends State<HistoryPage> {
       );
       return;
     }
-    // 用 open_filex 打开文件，系统会弹出"打开方式"选择器
-    // open_filex 在 Android 上会触发 ACTION_VIEW Intent
-    // 如果系统有多个应用可打开，会自动弹出选择器
-    final result = await OpenFilex.open(task.outputPath!);
-    if (result.type != ResultType.done) {
-      if (mounted) {
-        showCupertinoDialog<void>(
-          context: context,
-          builder: (ctx) => CupertinoAlertDialog(
-            content: Text('无法打开文件: ${result.message}'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('好'),
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-            ],
-          ),
-        );
-      }
-    }
+    await OpenFilex.open(task.outputPath!);
   }
 }
 
@@ -190,6 +274,8 @@ class _HistoryCard extends StatelessWidget {
   final ConversionTask task;
   final bool fileExists;
   final int? fileSize;
+  final bool selectionMode;
+  final bool selected;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -197,39 +283,58 @@ class _HistoryCard extends StatelessWidget {
     required this.task,
     required this.fileExists,
     required this.fileSize,
+    required this.selectionMode,
+    required this.selected,
     required this.onTap,
     required this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
+    // 选择模式：不显示 Dismissible，只显示选择框
+    if (selectionMode) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected
+                ? const Color(0xFF007AFF).withValues(alpha: 0.1)
+                : CupertinoColors.systemBackground.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(12),
+            border: selected
+                ? Border.all(color: const Color(0xFF007AFF), width: 1.5)
+                : null,
+          ),
+          child: Row(
+            children: [
+              _buildCheckbox(),
+              const SizedBox(width: 12),
+              _buildThumbnail(),
+              const SizedBox(width: 12),
+              Expanded(child: _buildInfo()),
+              _buildStatusIcon(),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Dismissible(
       key: ValueKey(task.id),
-      // 手指向右滑（startToEnd）：重新转换 → 蓝色背景靠左
       background: _buildSwipeBackground(
-        const Color(0xFF007AFF),
-        CupertinoIcons.arrow_clockwise,
-        '重新转换',
-        Alignment.centerLeft,
+        const Color(0xFF007AFF), CupertinoIcons.arrow_clockwise, '重新转换', Alignment.centerLeft,
       ),
-      // 手指向左滑（endToStart）：删除 → 红色背景靠右
       secondaryBackground: _buildSwipeBackground(
-        CupertinoColors.destructiveRed,
-        CupertinoIcons.delete,
-        '删除',
-        Alignment.centerRight,
+        CupertinoColors.destructiveRed, CupertinoIcons.delete, '删除', Alignment.centerRight,
       ),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
-          // 手指向右滑 → 重新转换
           await _reConvert(context);
           return false;
         } else {
-          // 手指向左滑 → 删除确认
-          final action = await DeleteConfirmDialog.show(
-            context,
-            fileName: task.originalName,
-          );
+          final action = await DeleteConfirmDialog.show(context, fileName: task.originalName);
           if (action == DeleteAction.removeRecordOnly) {
             await context.read<HistoryModel>().removeRecord(task.id);
             return false;
@@ -253,69 +358,10 @@ class _HistoryCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 缩略图（手势由父 GestureDetector 统一处理）
               _buildThumbnail(),
               const SizedBox(width: 12),
-              // 文件信息
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.originalName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    // 格式转换标识：原格式 → 新格式
-                    Row(
-                      children: [
-                        _formatTag(_inputFormat(task), isInput: true),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4),
-                          child: Icon(CupertinoIcons.arrow_right, size: 12, color: CupertinoColors.systemGrey),
-                        ),
-                        _formatTag(task.outputFormat.toUpperCase()),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    if (!fileExists)
-                      const Text(
-                        '媒体丢失',
-                        style: TextStyle(fontSize: 11, color: CupertinoColors.destructiveRed, fontWeight: FontWeight.w500),
-                      )
-                    else if (task.outputPath != null)
-                      Text(
-                        task.outputPath!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey),
-                      ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          _formatTime(task.completedAt ?? task.createdAt),
-                          style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey2),
-                        ),
-                        if (fileSize != null && fileExists) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            '· ${_formatSize(fileSize!)}',
-                            style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey2),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // 状态图标
-              if (!fileExists)
-                const Icon(CupertinoIcons.exclamationmark_circle_fill, color: CupertinoColors.destructiveRed, size: 24)
-              else
-                const Icon(CupertinoIcons.checkmark_circle_fill, color: CupertinoColors.activeGreen, size: 20),
+              Expanded(child: _buildInfo()),
+              _buildStatusIcon(),
             ],
           ),
         ),
@@ -323,9 +369,26 @@ class _HistoryCard extends StatelessWidget {
     );
   }
 
+  Widget _buildCheckbox() {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: selected ? const Color(0xFF007AFF) : CupertinoColors.transparent,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? const Color(0xFF007AFF) : CupertinoColors.systemGrey,
+          width: 1.5,
+        ),
+      ),
+      child: selected
+          ? const Icon(CupertinoIcons.checkmark, color: CupertinoColors.white, size: 16)
+          : null,
+    );
+  }
+
   Widget _buildThumbnail() {
     if (!fileExists || task.outputPath == null) {
-      // 媒体丢失：圆形红色感叹号
       return Container(
         width: 48,
         height: 48,
@@ -333,65 +396,104 @@ class _HistoryCard extends StatelessWidget {
           color: CupertinoColors.destructiveRed.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Icon(
-          CupertinoIcons.exclamationmark_circle_fill,
-          color: CupertinoColors.destructiveRed,
-          size: 28,
+        child: const Icon(CupertinoIcons.exclamationmark_circle_fill, color: CupertinoColors.destructiveRed, size: 28),
+      );
+    }
+    // 图片：直接用输出文件作为缩略图
+    if (task.type == MediaFileType.image) {
+      final file = File(task.outputPath!);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Image.file(file, fit: BoxFit.cover, cacheWidth: 96, cacheHeight: 96,
+            errorBuilder: (_, __, ___) => _buildPlaceholder(),
+          ),
         ),
       );
     }
-    // 文件存在：显示缩略图（带预览提示图标）
-    final file = File(task.outputPath!);
-    return Stack(
+    // 视频/音频：用图标占位
+    return _buildPlaceholder();
+  }
+
+  Widget _buildPlaceholder() {
+    IconData icon;
+    switch (task.type) {
+      case MediaFileType.image: icon = CupertinoIcons.photo; break;
+      case MediaFileType.audio: icon = CupertinoIcons.music_note; break;
+      case MediaFileType.video: icon = CupertinoIcons.film; break;
+    }
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: const Color(0xFF007AFF).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, size: 24, color: const Color(0xFF007AFF)),
+    );
+  }
+
+  Widget _buildInfo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Image.file(
-              file,
-              fit: BoxFit.cover,
-              cacheWidth: 96,
-              cacheHeight: 96,
-              errorBuilder: (_, __, ___) => Container(
-                color: CupertinoColors.systemGrey5,
-                child: const Icon(CupertinoIcons.photo, size: 24, color: CupertinoColors.systemGrey),
-              ),
-            ),
-          ),
+        Text(
+          task.originalName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
-        // 右下角预览图标（提示可点击预览）
-        Positioned(
-          right: 0,
-          bottom: 0,
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: const Color(0xFF007AFF).withValues(alpha: 0.9),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(6),
-                bottomRight: Radius.circular(10),
-              ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            _formatTag(_inputFormat(), isInput: true),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(CupertinoIcons.arrow_right, size: 12, color: CupertinoColors.systemGrey),
             ),
-            child: const Icon(
-              CupertinoIcons.eye_fill,
-              size: 10,
-              color: CupertinoColors.white,
-            ),
+            _formatTag(task.outputFormat.toUpperCase()),
+          ],
+        ),
+        const SizedBox(height: 2),
+        if (!fileExists)
+          const Text('媒体丢失', style: TextStyle(fontSize: 11, color: CupertinoColors.destructiveRed, fontWeight: FontWeight.w500))
+        else if (task.outputPath != null)
+          Text(
+            task.outputPath!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey),
           ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text(
+              _formatTime(task.completedAt ?? task.createdAt),
+              style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey2),
+            ),
+            if (fileSize != null && fileExists) ...[
+              const SizedBox(width: 8),
+              Text('· ${_formatSize(fileSize!)}', style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey2)),
+            ],
+          ],
         ),
       ],
     );
   }
 
+  Widget _buildStatusIcon() {
+    if (!fileExists) {
+      return const Icon(CupertinoIcons.exclamationmark_circle_fill, color: CupertinoColors.destructiveRed, size: 24);
+    }
+    return const Icon(CupertinoIcons.checkmark_circle_fill, color: CupertinoColors.activeGreen, size: 20);
+  }
+
   Widget _buildSwipeBackground(Color color, IconData icon, String label, Alignment alignment) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
       alignment: alignment,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -405,35 +507,24 @@ class _HistoryCard extends StatelessWidget {
     );
   }
 
-  /// 获取输入文件格式
-  String _inputFormat(ConversionTask task) {
+  String _inputFormat() {
     final dotIndex = task.originalName.lastIndexOf('.');
     if (dotIndex < 0) return '?';
     return task.originalName.substring(dotIndex + 1).toUpperCase();
   }
 
-  /// 格式标签
   Widget _formatTag(String text, {bool isInput = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: isInput
-            ? CupertinoColors.systemGrey5
-            : const Color(0xFF007AFF).withValues(alpha: 0.1),
+        color: isInput ? CupertinoColors.systemGrey5 : const Color(0xFF007AFF).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: isInput ? CupertinoColors.systemGrey : const Color(0xFF007AFF),
-        ),
-      ),
+      child: Text(text, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+        color: isInput ? CupertinoColors.systemGrey : const Color(0xFF007AFF))),
     );
   }
 
-  /// 重新转换：加入转换队列
   Future<void> _reConvert(BuildContext context) async {
     final newTask = ConversionTask(
       id: 'task_${DateTime.now().millisecondsSinceEpoch}_${task.originalName.hashCode.abs()}',
@@ -449,11 +540,13 @@ class _HistoryCard extends StatelessWidget {
       paletteColors: task.paletteColors,
       keepTransparency: task.keepTransparency,
       backgroundColor: task.backgroundColor,
-      svgScale: task.svgScale,
+      sampleRate: task.sampleRate,
+      bitDepth: task.bitDepth,
+      audioBitrate: task.audioBitrate,
+      channels: task.channels,
+      enable3DSurround: task.enable3DSurround,
       createdAt: DateTime.now(),
     );
-
-    // 检查源文件是否存在
     final inputFile = File(task.inputPath);
     if (!await inputFile.exists()) {
       if (context.mounted) {
@@ -462,33 +555,19 @@ class _HistoryCard extends StatelessWidget {
           builder: (ctx) => CupertinoAlertDialog(
             title: const Text('无法重新转换'),
             content: const Text('源文件已被删除或移动'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('好'),
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-            ],
+            actions: [CupertinoDialogAction(child: const Text('好'), onPressed: () => Navigator.of(ctx).pop())],
           ),
         );
       }
       return;
     }
-
-    // 加入转换队列（缩略图由 home_page 监听新任务自动生成）
     context.read<ConversionModel>().addTask(newTask);
-
-    // 提示
     if (context.mounted) {
       showCupertinoDialog<void>(
         context: context,
         builder: (ctx) => CupertinoAlertDialog(
           content: Text('已加入转换队列: ${task.originalName}'),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('好'),
-              onPressed: () => Navigator.of(ctx).pop(),
-            ),
-          ],
+          actions: [CupertinoDialogAction(child: const Text('好'), onPressed: () => Navigator.of(ctx).pop())],
         ),
       );
     }
@@ -506,18 +585,13 @@ class _HistoryCard extends StatelessWidget {
   }
 }
 
-/// 自定义手势处理器
-/// 用 Listener + 计时器实现点击和长按，避免与 Dismissible 的手势竞争
+/// 自定义手势处理器（避免 Dismissible 手势竞争）
 class _CardGestureHandler extends StatefulWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final Widget child;
 
-  const _CardGestureHandler({
-    this.onTap,
-    this.onLongPress,
-    required this.child,
-  });
+  const _CardGestureHandler({this.onTap, this.onLongPress, required this.child});
 
   @override
   State<_CardGestureHandler> createState() => _CardGestureHandlerState();
@@ -525,10 +599,9 @@ class _CardGestureHandler extends StatefulWidget {
 
 class _CardGestureHandlerState extends State<_CardGestureHandler> {
   Offset? _downPosition;
-  DateTime? _downTime;
   bool _longPressTriggered = false;
   static const _longPressDuration = Duration(milliseconds: 500);
-  static const _longPressMoveThreshold = 10.0;
+  static const _moveThreshold = 10.0;
 
   void _startLongPressTimer() {
     Future.delayed(_longPressDuration, () {
@@ -544,23 +617,19 @@ class _CardGestureHandlerState extends State<_CardGestureHandler> {
     return Listener(
       onPointerDown: (event) {
         _downPosition = event.position;
-        _downTime = DateTime.now();
         _longPressTriggered = false;
         _startLongPressTimer();
       },
       onPointerMove: (event) {
         if (_downPosition != null) {
-          final distance = (event.position - _downPosition!).distance;
-          if (distance > _longPressMoveThreshold) {
-            // 手指移动超过阈值，取消长按
+          if ((event.position - _downPosition!).distance > _moveThreshold) {
             _downPosition = null;
-            _longPressTriggered = true; // 阻止长按触发
+            _longPressTriggered = true;
           }
         }
       },
       onPointerUp: (event) {
         if (_downPosition != null && !_longPressTriggered) {
-          // 没触发长按，执行点击
           widget.onTap?.call();
         }
         _downPosition = null;
