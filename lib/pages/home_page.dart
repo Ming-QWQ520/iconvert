@@ -450,7 +450,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildTabBar() {
     return Consumer<ConversionModel>(
       builder: (context, model, _) {
-        return Container(
+        final tabBar = Container(
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
@@ -468,6 +468,8 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         );
+        // 液态玻璃开启时包裹
+        return GlassCard.wrapIfEnabled(context, child: tabBar, cornerRadius: 14);
       },
     );
   }
