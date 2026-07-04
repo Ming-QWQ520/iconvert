@@ -302,7 +302,7 @@ class _PreviewDialogState extends State<PreviewDialog> {
                       ],
                     ),
                     child: const Icon(
-                      CupertinoIcons.arrow_left_arrow_right,
+                      CupertinoIcons.arrow_swap,
                       color: CupertinoColors.white,
                       size: 18,
                     ),
