@@ -40,7 +40,8 @@ class ForegroundService {
   /// 启动前台服务
   static Future<void> start({required int total}) async {
     try {
-      if (!await FlutterForegroundTask.isRunningService()) {
+      // isRunningService 在 flutter_foreground_task 6.x 是 Future<bool> 属性，不是方法
+      if (!await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.startService(
           notificationTitle: 'iConvert 正在转换',
           notificationText: '共 $total 个任务',
@@ -80,6 +81,6 @@ class ForegroundService {
 
   /// 是否在运行
   static Future<bool> isRunning() async {
-    return await FlutterForegroundTask.isRunningService();
+    return await FlutterForegroundTask.isRunningService;
   }
 }
