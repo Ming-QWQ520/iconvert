@@ -1,11 +1,4 @@
 /// PathSettingDialog - 输出路径设置弹窗（液态玻璃）
-///
-/// 设计（规划 4.10）：
-/// - 标题"选择保存位置"
-/// - 路径显示在 CupertinoTextField 中
-/// - "浏览"按钮调起 FilePicker.platform.getDirectoryPath()
-/// - 确认后保存路径并创建目录
-/// - GlassContainer sigma=15
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -59,9 +52,14 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
         originalName: 'test.tmp',
         outputFormat: 'tmp',
       );
+      // 先关闭路径弹窗
       if (mounted) {
         Navigator.of(context).pop();
-        _showToast('已保存到: $path');
+        // 然后再显示成功提示（用 root navigator，避免被路径弹窗拦截）
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) {
+          _showToast('已保存到: $path');
+        }
       }
     } catch (e) {
       if (mounted) _showToast('保存失败: $e');
@@ -71,15 +69,19 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
   }
 
   void _showToast(String msg) {
-    // 简单 toast 实现（用 CupertinoNotificationBar 风格）
+    // 用 rootNavigator 显示，避免被路径弹窗的 navigator 干扰
+    final overlay = CupertinoApp.rootOverlayKey.currentContext ?? context;
     showCupertinoDialog<void>(
-      context: context,
-      builder: (_) => CupertinoAlertDialog(
+      context: overlay,
+      barrierDismissible: true,
+      builder: (dialogContext) => CupertinoAlertDialog(
         content: Text(msg),
         actions: [
           CupertinoDialogAction(
             child: const Text('好'),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+            },
           ),
         ],
       ),
@@ -100,7 +102,7 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
             height: 56,
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFF007AFF).withOpacity(0.1),
+              color: const Color(0xFF007AFF).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -148,6 +150,7 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 color: CupertinoColors.systemGrey5,
                 borderRadius: BorderRadius.circular(8),
+                onPressed: _browse,
                 child: const Text(
                   '浏览',
                   style: TextStyle(
@@ -155,7 +158,6 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
                     color: Color(0xFF007AFF),
                   ),
                 ),
-                onPressed: _browse,
               ),
             ],
           ),
@@ -180,6 +182,7 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   color: CupertinoColors.systemGrey5,
                   borderRadius: BorderRadius.circular(10),
+                  onPressed: _saving ? null : () => Navigator.of(context).pop(),
                   child: const Text(
                     '取消',
                     style: TextStyle(
@@ -187,7 +190,6 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
                       color: CupertinoColors.systemGrey,
                     ),
                   ),
-                  onPressed: _saving ? null : () => Navigator.of(context).pop(),
                 ),
               ),
               const SizedBox(width: 12),
@@ -195,10 +197,10 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
                 child: CupertinoButton.filled(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   borderRadius: BorderRadius.circular(10),
+                  onPressed: _saving ? null : _confirm,
                   child: _saving
                       ? const CupertinoActivityIndicator(color: CupertinoColors.white)
                       : const Text('确认', style: TextStyle(fontSize: 15)),
-                  onPressed: _saving ? null : _confirm,
                 ),
               ),
             ],
