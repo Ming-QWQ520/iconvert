@@ -63,6 +63,8 @@ class _BatchConvertDialogState extends State<BatchConvertDialog> {
   late double _quality;
   late final TextEditingController _widthCtrl;
   late final TextEditingController _heightCtrl;
+  // 视频/动图参数
+  late double _fps;
   // 音频参数
   late int _sampleRate;
   late int _bitDepth;
@@ -75,6 +77,7 @@ class _BatchConvertDialogState extends State<BatchConvertDialog> {
     super.initState();
     _outputFormat = widget.defaultOutputFormat;
     _quality = 80;
+    _fps = 0;  // 0=原始帧率
     _widthCtrl = TextEditingController();
     _heightCtrl = TextEditingController();
     _sampleRate = 44100;
@@ -306,6 +309,16 @@ class _BatchConvertDialogState extends State<BatchConvertDialog> {
             ],
           ),
           CupertinoSlider(value: _quality, min: 1, max: 100, divisions: 99, onChanged: (v) => setState(() => _quality = v)),
+          const SizedBox(height: 16),
+          // 视频帧率
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('帧率 (FPS, 0=原始)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(_fps.toInt() == 0 ? '原始' : _fps.toInt().toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
+            ],
+          ),
+          CupertinoSlider(value: _fps, min: 0, max: 60, divisions: 60, onChanged: (v) => setState(() => _fps = v)),
         ],
       ),
     );
@@ -421,6 +434,7 @@ class _BatchConvertDialogState extends State<BatchConvertDialog> {
       quality: _quality.toInt(),
       width: int.tryParse(_widthCtrl.text.trim()),
       height: int.tryParse(_heightCtrl.text.trim()),
+      fps: widget.fileType == MediaFileType.video ? (_fps.toInt() == 0 ? null : _fps.toInt()) : null,
       sampleRate: widget.fileType == MediaFileType.audio ? _sampleRate : null,
       bitDepth: widget.fileType == MediaFileType.audio ? _bitDepth : null,
       audioBitrate: widget.fileType == MediaFileType.audio ? _audioBitrate : null,
