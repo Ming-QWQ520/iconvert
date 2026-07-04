@@ -1,0 +1,56 @@
+name: Build APK
+
+# 触发条件：手动触发 + 推送 tag 时触发
+# 不在普通 push 时触发，避免每次推送都跑
+on:
+  workflow_dispatch:  # 手动触发（在 Actions 页面点 "Run workflow"）
+  push:
+    tags:
+      - 'v*'  # 推送 v1.0.0 这样的 tag 时触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Verify install
+        run: flutter doctor
+
+      - name: Build APK (split per ABI)
+        run: flutter build apk --split-per-abi --release
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: iconvert-apks
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 90
+
+      - name: Show build info
+        run: |
+          echo "## APK 构建完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 构建产物" >> $GITHUB_STEP_SUMMARY
+          ls -lh build/app/outputs/flutter-apk/*.apk | awk '{print "- `" $9 "`: " $5}' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "下载地址：在 Actions 运行页面下方的 Artifacts 区域" >> $GITHUB_STEP_SUMMARY
