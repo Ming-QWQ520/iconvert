@@ -70,9 +70,9 @@ class _PathSettingDialogState extends State<PathSettingDialog> {
 
   void _showToast(String msg) {
     // 用 rootNavigator 显示，避免被路径弹窗的 navigator 干扰
-    final overlay = CupertinoApp.rootOverlayKey.currentContext ?? context;
+    final overlayContext = Navigator.of(context, rootNavigator: true).context;
     showCupertinoDialog<void>(
-      context: overlay,
+      context: overlayContext,
       barrierDismissible: true,
       builder: (dialogContext) => CupertinoAlertDialog(
         content: Text(msg),
