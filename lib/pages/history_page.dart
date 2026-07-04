@@ -128,11 +128,8 @@ class _HistoryPageState extends State<HistoryPage> {
               )
             : CupertinoButton(
                 padding: EdgeInsets.zero,
-                child: const Text('全选'),
-                onPressed: () {
-                  _enterSelectionMode();
-                  _toggleSelectAll();
-                },
+                child: const Text('选择'),
+                onPressed: _enterSelectionMode,
               ),
         trailing: _selectionMode
             ? Row(
@@ -185,8 +182,8 @@ class _HistoryPageState extends State<HistoryPage> {
                   },
                   onLongPress: () {
                     if (!_selectionMode) {
-                      _enterSelectionMode();
-                      _toggleSelect(task.id);
+                      // 长按 → 调起系统打开方式
+                      _openWith(task);
                     }
                   },
                 );
