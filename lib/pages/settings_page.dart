@@ -9,6 +9,7 @@ import 'package:flutter/cupertino.dart';
 import 'dart:ui';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:iconvert/services/storage_service.dart';
+import 'package:iconvert/services/file_service.dart';
 import 'package:iconvert/dialogs/path_setting_dialog.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -20,11 +21,26 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   String _outputDir = StorageService.defaultOutputDir;
+  FilePickerType _pickerType = FilePickerType.gallery;
+  bool _mtManagerInstalled = false;
 
   @override
   void initState() {
     super.initState();
-    _loadOutputDir();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final dir = await StorageService.getOutputDir();
+    final pickerType = await StorageService.getFilePickerType();
+    final mtInstalled = await FileService.isMTManagerInstalled();
+    if (mounted) {
+      setState(() {
+        _outputDir = dir;
+        _pickerType = pickerType;
+        _mtManagerInstalled = mtInstalled;
+      });
+    }
   }
 
   Future<void> _loadOutputDir() async {
@@ -39,6 +55,68 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (_) => const PathSettingDialog(),
     );
     await _loadOutputDir();
+  }
+
+  Future<void> _changePickerType(FilePickerType type) async {
+    if (type == FilePickerType.mtManager && !_mtManagerInstalled) {
+      // 提示用户未安装 MT 管理器
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          content: const Text('你好像没下MT管理器哦=￣ω￣='),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('好'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    await StorageService.setFilePickerType(type);
+    setState(() => _pickerType = type);
+  }
+
+  String get _pickerTypeLabel {
+    switch (_pickerType) {
+      case FilePickerType.gallery:
+        return '系统相册（默认）';
+      case FilePickerType.system:
+        return '系统原生选择器';
+      case FilePickerType.mtManager:
+        return 'MT 管理器';
+    }
+  }
+
+  Future<void> _showPickerTypeDialog() async {
+    final selected = await showCupertinoModalPopup<FilePickerType>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('选择文件选择器'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(ctx).pop(FilePickerType.gallery),
+            child: const Text('系统相册（默认）'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(ctx).pop(FilePickerType.system),
+            child: const Text('系统原生选择器'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(ctx).pop(FilePickerType.mtManager),
+            child: const Text('MT 管理器'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+    if (selected != null) {
+      await _changePickerType(selected);
+    }
   }
 
   /// GitHub 跳转：液态玻璃确认弹窗 → 点击"好"才跳转
@@ -110,6 +188,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   trailing: const CupertinoListTileChevron(),
                   onTap: _editPath,
+                ),
+                CupertinoListTile.notched(
+                  title: const Text('文件选择器'),
+                  subtitle: Text(
+                    _pickerTypeLabel,
+                    style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+                  ),
+                  trailing: const CupertinoListTileChevron(),
+                  onTap: _showPickerTypeDialog,
                 ),
               ],
             ),
