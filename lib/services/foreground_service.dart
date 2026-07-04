@@ -20,6 +20,7 @@ class ForegroundService {
         channelDescription: '显示当前文件转换进度',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
+        showWhen: false,
         iconData: const NotificationIconData(
           resType: ResourceType.mipmap,
           resPrefix: ResourcePrefix.ic,
@@ -28,7 +29,7 @@ class ForegroundService {
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
       foregroundTaskOptions: const ForegroundTaskOptions(
-        interval: 1000,
+        interval: 500,
         autoRunOnBoot: false,
         allowWifiLock: true,
       ),
@@ -40,7 +41,7 @@ class ForegroundService {
       if (!await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.startService(
           notificationTitle: 'iConvert 正在转换',
-          notificationText: '共 $total 个任务',
+          notificationText: '共 $total 个任务，准备中...',
         );
       }
     } catch (e) {
@@ -48,27 +49,70 @@ class ForegroundService {
     }
   }
 
-  /// 更新通知文本（显示成功/失败计数）
-  static Future<void> updateNotification({
-    required int completed,
+  /// 更新通知：显示当前任务进度（带进度条）
+  /// [currentProgress] 当前任务进度 0.0-1.0
+  /// [completedCount] 已完成任务数
+  /// [total] 总任务数
+  /// [currentFileName] 当前任务文件名
+  /// [successCount] 成功数
+  /// [failedCount] 失败数
+  static Future<void> updateProgress({
+    required double currentProgress,
+    required int completedCount,
     required int total,
-    required int success,
-    required int failed,
-    String? currentFileName,
+    required String currentFileName,
+    required int successCount,
+    required int failedCount,
   }) async {
     try {
+      final remaining = total - completedCount - 1;  // 当前任务剩余 = 总数 - 已完成 - 1（当前在跑）
+      final percent = (currentProgress * 100).toInt();
+      final text = '$currentFileName $percent% · 剩余 $remaining 个';
+      FlutterForegroundTask.updateService(
+        notificationText: text,
+        notificationProgress: notificationProgress(percent, total * 100, (completedCount * 100 + percent)),
+      );
+    } catch (e) {
+      debugPrint('更新通知进度失败: $e');
+    }
+  }
+
+  /// 单个任务完成时更新通知
+  static Future<void> updateTaskDone({
+    required int completedCount,
+    required int total,
+    required String fileName,
+    required int successCount,
+    required int failedCount,
+  }) async {
+    try {
+      final remaining = total - completedCount;
       String text;
-      if (completed >= total) {
-        // 全部完成
-        text = '完成: $total 个 / 成功 $success / 失败 $failed';
+      if (remaining > 0) {
+        text = '已完成: $fileName · 剩余 $remaining 个 · 成功 $successCount 失败 $failedCount';
       } else {
-        // 进行中
-        final progress = '$completed/$total';
-        text = currentFileName != null
-            ? '正在转换: $currentFileName ($progress) 成功 $success 失败 $failed'
-            : '进度: $progress 成功 $success 失败 $failed';
+        text = '全部完成 · 共 $total 个 · 成功 $successCount 失败 $failedCount';
       }
-      FlutterForegroundTask.updateService(notificationText: text);
+      FlutterForegroundTask.updateService(
+        notificationText: text,
+        notificationProgress: notificationProgress(100, 100, 100),
+      );
+    } catch (e) {
+      debugPrint('更新通知失败: $e');
+    }
+  }
+
+  /// 完成总结通知
+  static Future<void> showSummary({
+    required int total,
+    required int successCount,
+    required int failedCount,
+  }) async {
+    try {
+      FlutterForegroundTask.updateService(
+        notificationText: '全部完成 · 共 $total 个 · 成功 $successCount 失败 $failedCount',
+        notificationProgress: null,
+      );
     } catch (e) {
       debugPrint('更新通知失败: $e');
     }
@@ -84,5 +128,16 @@ class ForegroundService {
 
   static Future<bool> isRunning() async {
     return await FlutterForegroundTask.isRunningService;
+  }
+
+  /// 构造通知进度对象
+  static NotificationProgress? notificationProgress(int percent, int max, int current) {
+    // 如果 percent >= 100 则不显示进度条
+    if (percent >= 100) return null;
+    return NotificationProgress(
+      max: max,
+      current: current,
+      indeterminate: false,
+    );
   }
 }
