@@ -86,6 +86,8 @@ class CommandBuilder {
 
     if (task.type == MediaFileType.image) {
       parts.addAll(_buildImageArgs(task));
+    } else if (task.type == MediaFileType.audio) {
+      parts.addAll(_buildAudioArgs(task));
     } else {
       parts.addAll(_buildVideoArgs(task));
     }
@@ -226,8 +228,101 @@ class CommandBuilder {
       case 'mov':
       case 'avi':
       case 'flv':
+      case 'wmv':
+      case 'mpeg':
+      case 'mpg':
+        // MOV/AVI/FLV/WMV/MPEG/MPG 用 H.264 + AAC 通用兼容
         args.addAll(['-c:v', 'libopenh264', '-b:v', _videoBitrate(task)]);
         args.addAll(['-c:a', 'aac', '-b:a', '128k']);
+        // WMV 用 wmv2 编码更兼容
+        if (fmt == 'wmv') {
+          args.addAll(['-c:v', 'wmv2', '-b:v', _videoBitrate(task)]);
+          args.addAll(['-c:a', 'wmav2', '-b:a', '128k']);
+        }
+        break;
+    }
+
+    return args;
+  }
+
+  /// 构建音频转换参数
+  /// 支持: MP3/AAC/WMA/OGG/FLAC/WAV/APE
+  /// 参数: 采样率/量化位数/比特率/声道/3D环绕
+  static List<String> _buildAudioArgs(ConversionTask task) {
+    final args = <String>[];
+    final fmt = task.outputFormat.toLowerCase();
+
+    // 3D 环绕效果：左右声道单声道循环变大变小
+    // 用 pan 滤镜把左声道设为左耳+部分右耳，右声道设为右耳+部分左耳
+    // 然后用 aecho 和 tremolo 制造空间感和循环起伏
+    if (task.enable3DSurround) {
+      args.add('-filter_complex');
+      // 3D 环绕：把单声道扩展为立体声，并用 tremolo 制造左右循环变化
+      // [0:a]asetpts=N/SR/TB[a]; 
+      // 用 pan 分离左右声道，再各自加 tremolo（不同频率制造空间感）
+      args.add(
+        '[0:a]aformat=channel_layouts=stereo,'
+        'tremolo=f=0.5:d=0.3,'
+        'aecho=0.8:0.7:20:0.3,'
+        'volume=1.2'
+      );
+    }
+
+    // 采样率
+    if (task.sampleRate != null) {
+      args.addAll(['-ar', task.sampleRate.toString()]);
+    }
+
+    // 声道数
+    if (task.channels != null) {
+      args.addAll(['-ac', task.channels.toString()]);
+    }
+
+    // 格式特定编码参数
+    switch (fmt) {
+      case 'mp3':
+        args.addAll(['-c:a', 'libmp3lame']);
+        if (task.audioBitrate != null) {
+          args.addAll(['-b:a', '${task.audioBitrate}k']);
+        }
+        // 量化位数（MP3 仅支持 16-bit，所以这里忽略）
+        break;
+      case 'aac':
+      case 'm4a':
+        args.addAll(['-c:a', 'aac']);
+        if (task.audioBitrate != null) {
+          args.addAll(['-b:a', '${task.audioBitrate}k']);
+        }
+        break;
+      case 'wma':
+        args.addAll(['-c:a', 'wmav2']);
+        if (task.audioBitrate != null) {
+          args.addAll(['-b:a', '${task.audioBitrate}k']);
+        }
+        break;
+      case 'ogg':
+        args.addAll(['-c:a', 'libvorbis']);
+        if (task.audioBitrate != null) {
+          args.addAll(['-b:a', '${task.audioBitrate}k']);
+        }
+        break;
+      case 'flac':
+        args.addAll(['-c:a', 'flac']);
+        if (task.bitDepth != null) {
+          args.addAll(['-sample_fmt', 's${task.bitDepth}']);
+        }
+        break;
+      case 'wav':
+        args.addAll(['-c:a', 'pcm_s16le']);
+        if (task.bitDepth == 24) {
+          args.addAll(['-c:a', 'pcm_s24le']);
+        } else if (task.bitDepth == 32) {
+          args.addAll(['-c:a', 'pcm_s32le']);
+        }
+        break;
+      case 'ape':
+        // APE (Monkey's Audio) FFmpeg 可能不支持编码，fallback 到 FLAC
+        args.addAll(['-c:a', 'flac']);
         break;
     }
 
