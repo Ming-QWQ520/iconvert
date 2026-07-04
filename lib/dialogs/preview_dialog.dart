@@ -29,7 +29,8 @@ class _PreviewDialogState extends State<PreviewDialog> {
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.black,
       navigationBar: const CupertinoNavigationBar(
-        backgroundColor: CupertinoColors.black,
+        backgroundColor: CupertinoColors.transparent,
+        border: null,
         middle: Text('图片预览', style: TextStyle(color: CupertinoColors.white)),
       ),
       child: SafeArea(
