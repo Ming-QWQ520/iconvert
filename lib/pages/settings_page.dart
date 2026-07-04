@@ -7,9 +7,12 @@ library;
 
 import 'package:flutter/cupertino.dart';
 import 'dart:ui';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:iconvert/services/storage_service.dart';
 import 'package:iconvert/services/file_service.dart';
+import 'package:iconvert/services/background_service.dart';
+import 'package:iconvert/widgets/glass_theme.dart';
 import 'package:iconvert/dialogs/path_setting_dialog.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -85,6 +88,45 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     await StorageService.setLiquidGlassEnabled(value);
     setState(() => _liquidGlass = value);
+  }
+
+  /// 选择自定义背景
+  Future<void> _pickBackground() async {
+    final path = await BackgroundService.pickFromGallery();
+    if (path != null && mounted) {
+      context.read<GlassProvider>().setBackgroundPath(path);
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          content: const Text('背景已更新'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('好'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// 重置背景为默认
+  Future<void> _resetBackground() async {
+    context.read<GlassProvider>().resetBackground();
+    if (mounted) {
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          content: const Text('已恢复默认背景'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('好'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   /// 清除缓存
@@ -260,6 +302,23 @@ class _SettingsPageState extends State<SettingsPage> {
                     onChanged: _toggleLiquidGlass,
                   ),
                 ),
+                // 背景设置（仅在液态玻璃开启时显示）
+                if (_liquidGlass) ...[
+                  CupertinoListTile.notched(
+                    title: const Text('背景图片'),
+                    subtitle: const Text(
+                      '选择液态玻璃背景图',
+                      style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+                    ),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: _pickBackground,
+                  ),
+                  CupertinoListTile.notched(
+                    title: const Text('恢复默认背景'),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: _resetBackground,
+                  ),
+                ],
               ],
             ),
 
