@@ -391,7 +391,7 @@ class _HistoryCard extends StatelessWidget {
       return;
     }
 
-    // 加入转换队列
+    // 加入转换队列（缩略图由 home_page 监听新任务自动生成）
     context.read<ConversionModel>().addTask(newTask);
 
     // 提示
