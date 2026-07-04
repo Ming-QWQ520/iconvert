@@ -192,40 +192,18 @@ class FileService {
     return File(path);
   }
 
-  /// 生成缩略图（图片直接返回源路径不复制，视频用 FFmpeg 抽首帧）
-  /// 返回缩略图绝对路径，失败返回 null
+  /// 生成缩略图
+  /// 图片直接返回源路径（无缓存）
+  /// 视频/音频不生成缩略图（返回 null，用图标占位）
   static Future<String?> generateThumbnail({
     required String inputPath,
     required MediaFileType type,
   }) async {
-    try {
-      // 图片直接返回源路径（不复制，避免缓存膨胀）
-      if (type == MediaFileType.image) {
-        return inputPath;
-      }
-
-      // 视频：用 FFmpeg 抽首帧生成缩略图
-      final tempDir = Directory.systemTemp;
-      final thumbDir = Directory(p.join(tempDir.path, 'iconvert_thumbs'));
-      if (!await thumbDir.exists()) {
-        await thumbDir.create(recursive: true);
-      }
-      final thumbPath = p.join(
-        thumbDir.path,
-        '${p.basenameWithoutExtension(inputPath)}_${DateTime.now().millisecondsSinceEpoch}.jpg',
-      );
-
-      final cmd = '-ss 0 -i "$inputPath" -frames:v 1 '
-          '-vf "scale=200:200:force_original_aspect_ratio=decrease" '
-          '-q:v 5 "$thumbPath" -y';
-      final session = await FFmpegKit.execute(cmd);
-      final code = await session.getReturnCode();
-      if (!ReturnCode.isSuccess(code)) {
-        return null;
-      }
-      return thumbPath;
-    } catch (e) {
-      return null;
+    // 图片直接返回源路径（不复制，不产生缓存）
+    if (type == MediaFileType.image) {
+      return inputPath;
     }
+    // 视频/音频不生成缩略图，用图标占位
+    return null;
   }
 }
