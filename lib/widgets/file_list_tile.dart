@@ -145,13 +145,21 @@ class FileListTile extends StatelessWidget {
   }
 
   Widget _placeholder() {
+    IconData icon;
+    switch (task.type) {
+      case MediaFileType.image:
+        icon = CupertinoIcons.photo;
+        break;
+      case MediaFileType.audio:
+        icon = CupertinoIcons.music_note;
+        break;
+      case MediaFileType.video:
+        icon = CupertinoIcons.film;
+        break;
+    }
     return Container(
       color: CupertinoColors.systemGrey5,
-      child: Icon(
-        task.type == MediaFileType.image ? CupertinoIcons.photo : CupertinoIcons.film,
-        size: 32,
-        color: CupertinoColors.systemGrey,
-      ),
+      child: Icon(icon, size: 32, color: CupertinoColors.systemGrey),
     );
   }
 
