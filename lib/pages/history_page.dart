@@ -242,8 +242,9 @@ class _HistoryCard extends StatelessWidget {
         }
       },
       child: GestureDetector(
-        // 整卡片长按 → 打开方式（onLongPress）
-        onLongPress: onLongPress,
+        onTap: onTap,           // 点击 → 预览
+        onLongPress: onLongPress, // 长按 → 系统打开方式
+        behavior: HitTestBehavior.opaque,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           padding: const EdgeInsets.all(12),
@@ -253,12 +254,8 @@ class _HistoryCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 缩略图（点击 → 预览，长按 → 打开方式）
-              GestureDetector(
-                onTap: onTap,
-                onLongPress: onLongPress,
-                child: _buildThumbnail(),
-              ),
+              // 缩略图（手势由父 GestureDetector 统一处理）
+              _buildThumbnail(),
               const SizedBox(width: 12),
               // 文件信息
               Expanded(
@@ -270,6 +267,18 @@ class _HistoryCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    // 格式转换标识：原格式 → 新格式
+                    Row(
+                      children: [
+                        _formatTag(_inputFormat(task), isInput: true),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(CupertinoIcons.arrow_right, size: 12, color: CupertinoColors.systemGrey),
+                        ),
+                        _formatTag(task.outputFormat.toUpperCase()),
+                      ],
                     ),
                     const SizedBox(height: 2),
                     if (!fileExists)
@@ -393,6 +402,34 @@ class _HistoryCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(label, style: const TextStyle(fontSize: 12, color: CupertinoColors.white, fontWeight: FontWeight.w500)),
         ],
+      ),
+    );
+  }
+
+  /// 获取输入文件格式
+  String _inputFormat(ConversionTask task) {
+    final dotIndex = task.originalName.lastIndexOf('.');
+    if (dotIndex < 0) return '?';
+    return task.originalName.substring(dotIndex + 1).toUpperCase();
+  }
+
+  /// 格式标签
+  Widget _formatTag(String text, {bool isInput = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isInput
+            ? CupertinoColors.systemGrey5
+            : const Color(0xFF007AFF).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: isInput ? CupertinoColors.systemGrey : const Color(0xFF007AFF),
+        ),
       ),
     );
   }
