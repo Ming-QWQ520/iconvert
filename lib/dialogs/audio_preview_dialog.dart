@@ -168,6 +168,8 @@ class _AudioPreviewDialogState extends State<AudioPreviewDialog> {
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemBackground,
       navigationBar: CupertinoNavigationBar(
+        backgroundColor: CupertinoColors.transparent,
+        border: null,
         middle: Text(_isTrimMode ? '裁剪音频' : '音频播放'),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
