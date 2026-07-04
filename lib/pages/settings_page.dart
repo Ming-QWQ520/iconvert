@@ -1,8 +1,4 @@
 /// SettingsPage - 设置页
-///
-/// 设计（规划 4.12）：
-/// - CupertinoFormSection 展示"输出路径"行
-/// - 关于信息等用半透明卡片
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -36,16 +32,13 @@ class _SettingsPageState extends State<SettingsPage> {
       barrierDismissible: false,
       builder: (_) => const PathSettingDialog(),
     );
-    // 弹窗关闭后刷新显示
     await _loadOutputDir();
   }
 
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('设置'),
-      ),
+      navigationBar: const CupertinoNavigationBar(middle: Text('设置')),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.only(top: 24),
@@ -89,17 +82,30 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: const Text('转换引擎'),
                   additionalInfo: const Text('FFmpeg (LGPL)'),
                 ),
+                CupertinoListTile.notched(
+                  title: const Text('开发者'),
+                  additionalInfo: const Text('明 (Ming)'),
+                ),
+                CupertinoListTile.notched(
+                  title: const Text('GitHub 仓库'),
+                  additionalInfo: const Text('Ming-QWQ520'),
+                  trailing: const CupertinoListTileChevron(),
+                  onTap: () {
+                    // 直接显示 GitHub URL 弹窗
+                    _showGithubDialog();
+                  },
+                ),
               ],
             ),
 
             const SizedBox(height: 24),
 
-            // 说明卡片（半透明，无模糊）
+            // 说明卡片
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: CupertinoColors.systemBackground.withOpacity(0.7),
+                color: CupertinoColors.systemBackground.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Column(
@@ -107,14 +113,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     'iConvert · 全格式转换器',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   SizedBox(height: 8),
                   Text(
-                    '• 支持 JPG/PNG/WebP/MP4/MKV/WebM 等多种格式\n'
+                    '• 支持 JPG/PNG/WebP/BMP/TIFF/GIF 等图片格式\n'
+                    '• 支持 MP4/MKV/MOV/AVI/WebM/FLV/WMV/3GP 等视频格式\n'
                     '• 批量转换，后台队列执行\n'
                     '• 硬件编码优先，自动软件降级\n'
                     '• 所有处理均在本地完成，不上传任何数据',
@@ -127,8 +131,58 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
             ),
+
+            const SizedBox(height: 16),
+
+            // 版权信息
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(12),
+              child: const Column(
+                children: [
+                  Text(
+                    'Made by 明 (Ming)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF007AFF),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'github.com/Ming-QWQ520/iconvert',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: CupertinoColors.systemGrey2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showGithubDialog() {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('GitHub 仓库'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: SelectableText(
+            'https://github.com/Ming-QWQ520/iconvert',
+            style: TextStyle(fontSize: 13),
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('好'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
       ),
     );
   }
