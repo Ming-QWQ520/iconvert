@@ -19,6 +19,7 @@ import 'package:iconvert/services/storage_service.dart';
 import 'package:iconvert/services/foreground_service.dart';
 import 'package:iconvert/services/command_builder.dart';
 import 'package:iconvert/widgets/file_list_tile.dart';
+import 'package:iconvert/widgets/glass_theme.dart';
 import 'package:iconvert/dialogs/edit_dialog.dart';
 import 'package:iconvert/dialogs/permission_dialog.dart';
 import 'package:iconvert/dialogs/path_setting_dialog.dart';
@@ -540,13 +541,9 @@ class _HomePageState extends State<HomePage> {
         break;
     }
     return Center(
-      child: Container(
+      child: GlassCard(
         margin: const EdgeInsets.all(32),
         padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: CupertinoColors.systemBackground.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(16),
-        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
