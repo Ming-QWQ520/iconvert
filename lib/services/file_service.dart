@@ -112,8 +112,11 @@ class FileService {
   /// 检测 MT 管理器是否安装（用 flutter_device_apps 检测包名 bin.mt.plus）
   static Future<bool> isMTManagerInstalled() async {
     try {
-      return await FlutterDeviceApps.isInstalled(mtManagerPackage);
+      // flutter_device_apps 0.8.1 的 API：getApp(packageName) 返回 App? 或抛异常
+      final app = await FlutterDeviceApps.getApp(mtManagerPackage);
+      return app != null;
     } catch (e) {
+      // 如果 getApp 抛异常说明未安装
       return false;
     }
   }
