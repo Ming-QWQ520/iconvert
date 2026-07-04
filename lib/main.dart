@@ -55,8 +55,8 @@ class IConvertApp extends StatelessWidget {
         theme: const CupertinoThemeData(
           brightness: Brightness.light,
           primaryColor: Color(0xFF007AFF),
-          scaffoldBackgroundColor: Color(0xFFF2F2F7),
-          barBackgroundColor: Color(0xFFF8F8F8),
+          scaffoldBackgroundColor: Color(0x00000000),  // 透明，让背景图透出
+          barBackgroundColor: Color(0x00000000),       // 导航栏透明
           textTheme: CupertinoTextThemeData(primaryColor: Color(0xFF007AFF)),
         ),
         home: const GlassBackground(
