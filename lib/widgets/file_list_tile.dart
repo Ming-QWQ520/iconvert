@@ -148,14 +148,8 @@ class FileListTile extends StatelessWidget {
   }
 
   String _paramSummary() {
-    final parts = <String>[];
-    if (task.width != null && task.height != null) {
-      parts.add('${task.width}×${task.height}');
-    } else {
-      parts.add('原始分辨率');
-    }
-    parts.add('Q${task.quality}');
-    return parts.join(' · ');
+    // 使用 ConversionTask 自带的 paramSummary（已支持各种格式特性）
+    return task.paramSummary;
   }
 }
 
