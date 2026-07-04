@@ -109,13 +109,22 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      backgroundColor: const Color(0x00000000),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 半透明遮罩（让背景图稍微变暗，突出启动内容）
+          // 白色渐变背景（未开启液态玻璃时的启动页）
           Container(
-            color: const Color(0x66000000),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFFE8F0FF),
+                  Color(0xFFB0C4DE),
+                  Color(0xFF6B8AF0),
+                ],
+              ),
+            ),
           ),
 
           // 毛玻璃模糊层
