@@ -12,6 +12,7 @@ import 'package:iconvert/pages/settings_page.dart';
 import 'package:iconvert/services/file_service.dart';
 import 'package:iconvert/services/storage_service.dart';
 import 'package:iconvert/services/foreground_service.dart';
+import 'package:iconvert/services/command_builder.dart';
 import 'package:iconvert/widgets/file_list_tile.dart';
 import 'package:iconvert/dialogs/edit_dialog.dart';
 import 'package:iconvert/dialogs/permission_dialog.dart';
@@ -27,6 +28,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final Map<String, String> _thumbnailPaths = {};
   bool _wizardChecked = false;
+  // 多选模式
+  bool _selectionMode = false;
+  final Set<String> _selectedTaskIds = {};
 
   @override
   void initState() {
@@ -177,51 +181,82 @@ class _HomePageState extends State<HomePage> {
     return WithForegroundTask(
       child: CupertinoPageScaffold(
         navigationBar: CupertinoNavigationBar(
-          middle: const Text('格式工厂'),
-          leading: CupertinoButton(
-            padding: EdgeInsets.zero,
-            child: const Icon(CupertinoIcons.list_bullet),
-            onPressed: () => _navigateToHistory(),
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CupertinoButton(
-                padding: EdgeInsets.zero,
-                child: const Icon(CupertinoIcons.settings),
-                onPressed: () => _navigateToSettings(),
-              ),
-              Consumer<ConversionModel>(
-                builder: (context, model, _) {
-                  if (model.isConverting) {
-                    return CupertinoButton(
+          middle: Text(_selectionMode
+              ? '已选 ${_selectedTaskIds.length} 项'
+              : '格式工厂'),
+          leading: _selectionMode
+              ? CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  child: const Text('取消'),
+                  onPressed: _exitSelectionMode,
+                )
+              : CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  child: const Icon(CupertinoIcons.list_bullet),
+                  onPressed: () => _navigateToHistory(),
+                ),
+          trailing: _selectionMode
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CupertinoButton(
                       padding: EdgeInsets.zero,
                       child: const Text(
-                        '取消',
+                        '开始',
+                        style: TextStyle(color: Color(0xFF007AFF), fontWeight: FontWeight.w600),
+                      ),
+                      onPressed: _selectedTaskIds.isEmpty ? null : _startSelected,
+                    ),
+                    const SizedBox(width: 8),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      child: const Text(
+                        '删除',
                         style: TextStyle(color: CupertinoColors.destructiveRed),
                       ),
-                      onPressed: () {
-                        model.cancelConversion();
-                        ForegroundService.stop();
-                      },
-                    );
-                  }
-                  return CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    child: Text(
-                      '全部开始',
-                      style: TextStyle(
-                        color: model.tasks.isEmpty
-                            ? CupertinoColors.systemGrey
-                            : const Color(0xFF007AFF),
-                      ),
+                      onPressed: _selectedTaskIds.isEmpty ? null : _deleteSelected,
                     ),
-                    onPressed: model.tasks.isEmpty ? null : _startAll,
-                  );
-                },
-              ),
-            ],
-          ),
+                  ],
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      child: const Icon(CupertinoIcons.settings),
+                      onPressed: () => _navigateToSettings(),
+                    ),
+                    Consumer<ConversionModel>(
+                      builder: (context, model, _) {
+                        if (model.isConverting) {
+                          return CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            child: const Text(
+                              '取消',
+                              style: TextStyle(color: CupertinoColors.destructiveRed),
+                            ),
+                            onPressed: () {
+                              model.cancelConversion();
+                              ForegroundService.stop();
+                            },
+                          );
+                        }
+                        return CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          child: Text(
+                            '全部开始',
+                            style: TextStyle(
+                              color: model.tasks.isEmpty
+                                  ? CupertinoColors.systemGrey
+                                  : const Color(0xFF007AFF),
+                            ),
+                          ),
+                          onPressed: model.tasks.isEmpty ? null : _startAll,
+                        );
+                      },
+                    ),
+                  ],
+                ),
         ),
         child: SafeArea(
           child: Stack(
@@ -241,10 +276,51 @@ class _HomePageState extends State<HomePage> {
                           itemCount: model.tasks.length,
                           itemBuilder: (context, index) {
                             final task = model.tasks[index];
-                            return FileListTile(
-                              task: task,
-                              thumbnailPath: _thumbnailPaths[task.id],
-                              onTap: () => _showEditDialog(task),
+                            // 选择模式不显示 Dismissible
+                            if (_selectionMode) {
+                              return FileListTile(
+                                task: task,
+                                thumbnailPath: _thumbnailPaths[task.id],
+                                selectionMode: true,
+                                selected: _selectedTaskIds.contains(task.id),
+                                onTap: () => _toggleSelection(task.id),
+                              );
+                            }
+                            // 非选择模式：左滑删除
+                            return Dismissible(
+                              key: ValueKey(task.id),
+                              background: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: CupertinoColors.destructiveRed,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                child: const Icon(CupertinoIcons.delete, color: CupertinoColors.white),
+                              ),
+                              secondaryBackground: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: CupertinoColors.destructiveRed,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.centerLeft,
+                                padding: const EdgeInsets.only(left: 20),
+                                child: const Icon(CupertinoIcons.delete, color: CupertinoColors.white),
+                              ),
+                              confirmDismiss: (direction) async {
+                                // 左滑或右滑都删除
+                                model.removeTask(task.id);
+                                _thumbnailPaths.remove(task.id);
+                                return false;  // 已手动处理
+                              },
+                              child: FileListTile(
+                                task: task,
+                                thumbnailPath: _thumbnailPaths[task.id],
+                                onTap: () => _showEditDialog(task),
+                                onLongPress: () => _enterSelectionMode(task.id),
+                              ),
                             );
                           },
                         ),
@@ -254,40 +330,177 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
 
-              // 悬浮加号按钮
-              Positioned(
-                right: 20,
-                bottom: 20,
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF007AFF),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF007AFF).withValues(alpha: 0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    child: const Icon(
-                      CupertinoIcons.add,
-                      color: CupertinoColors.white,
-                      size: 28,
+              // 悬浮加号按钮（选择模式隐藏）
+              if (!_selectionMode)
+                Positioned(
+                  right: 20,
+                  bottom: 20,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF007AFF),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF007AFF).withValues(alpha: 0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    onPressed: _pickFiles,
+                    child: CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      child: const Icon(
+                        CupertinoIcons.add,
+                        color: CupertinoColors.white,
+                        size: 28,
+                      ),
+                      onPressed: _pickFiles,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// 进入多选模式（长按触发）
+  void _enterSelectionMode(String taskId) {
+    setState(() {
+      _selectionMode = true;
+      _selectedTaskIds.clear();
+      _selectedTaskIds.add(taskId);
+    });
+  }
+
+  /// 退出多选模式
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedTaskIds.clear();
+    });
+  }
+
+  /// 切换选中状态
+  void _toggleSelection(String taskId) {
+    setState(() {
+      if (_selectedTaskIds.contains(taskId)) {
+        _selectedTaskIds.remove(taskId);
+        if (_selectedTaskIds.isEmpty) {
+          _selectionMode = false;
+        }
+      } else {
+        _selectedTaskIds.add(taskId);
+      }
+    });
+  }
+
+  /// 删除选中的任务
+  void _deleteSelected() {
+    final model = context.read<ConversionModel>();
+    for (final id in _selectedTaskIds) {
+      model.removeTask(id);
+      _thumbnailPaths.remove(id);
+    }
+    _exitSelectionMode();
+  }
+
+  /// 开始选中的任务转换
+  Future<void> _startSelected() async {
+    final model = context.read<ConversionModel>();
+    final history = context.read<HistoryModel>();
+    final outputDir = await StorageService.getOutputDir();
+
+    // 取出选中的任务
+    final selectedTasks = model.tasks
+        .where((t) => _selectedTaskIds.contains(t.id))
+        .toList();
+    if (selectedTasks.isEmpty) return;
+
+    // 退出选择模式
+    _exitSelectionMode();
+
+    // 启动前台服务
+    final total = selectedTasks.length;
+    int successCount = 0;
+    int failedCount = 0;
+    int completedCount = 0;
+    await ForegroundService.start(total: total);
+
+    // 逐个执行选中的任务
+    for (final task in selectedTasks) {
+      if (model.isConverting == false && completedCount == 0) {
+        // 第一次进入
+      }
+      // 检查任务是否还在列表中（可能被用户删除）
+      final taskIdx = model.tasks.indexWhere((t) => t.id == task.id);
+      if (taskIdx < 0) continue;
+
+      // 标记转换中
+      model.updateTask(task.copyWith(
+        status: TaskStatus.converting,
+        progress: 0.0,
+        errorMessage: null,
+      ));
+
+      try {
+        final outputPath = await CommandBuilder.execute(
+          task: task,
+          outputDir: outputDir,
+          onProgress: (progress) {
+            model.updateTask(task.copyWith(
+              status: TaskStatus.converting,
+              progress: progress,
+            ));
+          },
+        );
+        final completed = task.copyWith(
+          status: TaskStatus.completed,
+          progress: 1.0,
+          outputPath: outputPath,
+          completedAt: DateTime.now(),
+        );
+        model.updateTask(completed);
+        await history.add(completed);
+        completedCount++;
+        successCount++;
+      } catch (e) {
+        model.updateTask(task.copyWith(
+          status: TaskStatus.failed,
+          errorMessage: e.toString(),
+          completedAt: DateTime.now(),
+        ));
+        completedCount++;
+        failedCount++;
+      }
+
+      // 更新通知
+      await ForegroundService.updateNotification(
+        completed: completedCount,
+        total: total,
+        success: successCount,
+        failed: failedCount,
+        currentFileName: task.originalName,
+      );
+
+      // 自动移除完成的任务
+      await Future.delayed(const Duration(milliseconds: 800));
+      model.removeTask(task.id);
+      _thumbnailPaths.remove(task.id);
+    }
+
+    // 完成通知 + 停止前台服务
+    await ForegroundService.updateNotification(
+      completed: completedCount,
+      total: total,
+      success: successCount,
+      failed: failedCount,
+    );
+    await Future.delayed(const Duration(seconds: 3));
+    await ForegroundService.stop();
   }
 
   Widget _buildEmptyState() {
