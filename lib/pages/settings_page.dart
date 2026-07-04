@@ -257,7 +257,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      backgroundColor: const Color(0x00000000),
       navigationBar: const CupertinoNavigationBar(middle: Text('设置'), backgroundColor: CupertinoColors.transparent, border: null),
       child: SafeArea(
         child: ListView(
