@@ -46,10 +46,6 @@ class _VideoPreviewDialogState extends State<VideoPreviewDialog> {
           backgroundColor: CupertinoColors.systemGrey5,
           bufferedColor: const Color(0xFF007AFF).withValues(alpha: 0.3),
         ),
-        cupertinoProgressColors: CupertinoProgressColors(
-          playedColor: const Color(0xFF007AFF),
-          handleColor: const Color(0xFF007AFF),
-        ),
       );
 
       if (mounted) {
