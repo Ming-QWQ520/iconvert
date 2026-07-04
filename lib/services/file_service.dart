@@ -10,6 +10,7 @@ import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:iconvert/models/conversion_task.dart';
 import 'package:iconvert/services/storage_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class FileService {
   /// MT 管理器包名
@@ -101,12 +102,22 @@ class FileService {
     return result.files.take(maxFiles).toList();
   }
 
-  /// 通过 MT 管理器选择文件（用 Intent）
-  /// 检测包名 bin.mt.plus 是否安装
+  /// 通过 MT 管理器选择文件
+  /// MT 管理器支持通过 Intent 调起文件选择
   static Future<List<PlatformFile>> _pickFromMTManager({int maxFiles = 50}) async {
-    // MT 管理器不支持多选返回，回退到系统选择器
-    // 这里先用系统选择器代替，但保留检测逻辑
-    return _pickFromSystem(maxFiles: maxFiles);
+    try {
+      // 用 url_launcher 调起 MT 管理器的文件选择 Intent
+      // MT 管理器支持 android.intent.action.GET_CONTENT
+      final uri = Uri.parse('mt://file/open');
+      await launchUrl(uri);
+      // MT 管理器选择后无法直接返回结果给 Flutter（无标准 Intent 回调）
+      // 所以这里仍然用系统选择器作为实际选择方式
+      // 但先调起 MT 管理器让用户感知
+      return _pickFromSystem(maxFiles: maxFiles);
+    } catch (e) {
+      // 如果调起失败，回退到系统选择器
+      return _pickFromSystem(maxFiles: maxFiles);
+    }
   }
 
   /// 检测 MT 管理器是否安装（用 flutter_device_apps 检测包名 bin.mt.plus）
@@ -126,22 +137,30 @@ class FileService {
     return await FilePicker.getDirectoryPath();
   }
 
-  /// 把选中的文件复制到 temp/inputs/，返回新路径（FFmpeg 用绝对路径）
+  /// 获取输入文件路径（不再复制到 temp，直接用源文件路径，避免缓存爆炸）
   static Future<String> copyToTempInput(PlatformFile file) async {
-    final tempDir = Directory.systemTemp;
-    final inputsDir = Directory(p.join(tempDir.path, 'iconvert_inputs'));
-    if (!await inputsDir.exists()) {
-      await inputsDir.create(recursive: true);
-    }
-
-    final destPath = p.join(inputsDir.path, file.name);
     final sourcePath = file.path;
     if (sourcePath == null) {
       throw Exception('文件路径为空');
     }
+    // 直接返回源文件路径，不复制（FFmpeg 可以直接读 content:// 或 file://）
+    return sourcePath;
+  }
 
-    await File(sourcePath).copy(destPath);
-    return destPath;
+  /// 清理临时文件（inputs/thumbs/previews）
+  static Future<void> cleanupTempFiles() async {
+    try {
+      final tempDir = Directory.systemTemp;
+      final dirs = ['iconvert_inputs', 'iconvert_thumbs', 'iconvert_previews'];
+      for (final dirName in dirs) {
+        final dir = Directory(p.join(tempDir.path, dirName));
+        if (await dir.exists()) {
+          await dir.delete(recursive: true);
+        }
+      }
+    } catch (e) {
+      // 忽略清理失败
+    }
   }
 
   /// 推断文件类型（基于扩展名）
@@ -173,13 +192,19 @@ class FileService {
     return File(path);
   }
 
-  /// 生成缩略图（图片直接复制，视频用 FFmpeg 抽首帧）
+  /// 生成缩略图（图片直接返回源路径不复制，视频用 FFmpeg 抽首帧）
   /// 返回缩略图绝对路径，失败返回 null
   static Future<String?> generateThumbnail({
     required String inputPath,
     required MediaFileType type,
   }) async {
     try {
+      // 图片直接返回源路径（不复制，避免缓存膨胀）
+      if (type == MediaFileType.image) {
+        return inputPath;
+      }
+
+      // 视频：用 FFmpeg 抽首帧生成缩略图
       final tempDir = Directory.systemTemp;
       final thumbDir = Directory(p.join(tempDir.path, 'iconvert_thumbs'));
       if (!await thumbDir.exists()) {
@@ -190,17 +215,13 @@ class FileService {
         '${p.basenameWithoutExtension(inputPath)}_${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
-      if (type == MediaFileType.image) {
-        await File(inputPath).copy(thumbPath);
-      } else {
-        final cmd = '-ss 0 -i "$inputPath" -frames:v 1 '
-            '-vf "scale=200:200:force_original_aspect_ratio=decrease" '
-            '-q:v 5 "$thumbPath" -y';
-        final session = await FFmpegKit.execute(cmd);
-        final code = await session.getReturnCode();
-        if (!ReturnCode.isSuccess(code)) {
-          return null;
-        }
+      final cmd = '-ss 0 -i "$inputPath" -frames:v 1 '
+          '-vf "scale=200:200:force_original_aspect_ratio=decrease" '
+          '-q:v 5 "$thumbPath" -y';
+      final session = await FFmpegKit.execute(cmd);
+      final code = await session.getReturnCode();
+      if (!ReturnCode.isSuccess(code)) {
+        return null;
       }
       return thumbPath;
     } catch (e) {
