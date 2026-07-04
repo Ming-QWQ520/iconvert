@@ -241,10 +241,9 @@ class _HistoryCard extends StatelessWidget {
           return false;
         }
       },
-      child: GestureDetector(
-        onTap: onTap,           // 点击 → 预览
-        onLongPress: onLongPress, // 长按 → 系统打开方式
-        behavior: HitTestBehavior.opaque,
+      child: _CardGestureHandler(
+        onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           padding: const EdgeInsets.all(12),
@@ -504,5 +503,69 @@ class _HistoryCard extends StatelessWidget {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / 1024 / 1024).toStringAsFixed(2)} MB';
+  }
+}
+
+/// 自定义手势处理器
+/// 用 Listener + 计时器实现点击和长按，避免与 Dismissible 的手势竞争
+class _CardGestureHandler extends StatefulWidget {
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final Widget child;
+
+  const _CardGestureHandler({
+    this.onTap,
+    this.onLongPress,
+    required this.child,
+  });
+
+  @override
+  State<_CardGestureHandler> createState() => _CardGestureHandlerState();
+}
+
+class _CardGestureHandlerState extends State<_CardGestureHandler> {
+  Offset? _downPosition;
+  DateTime? _downTime;
+  bool _longPressTriggered = false;
+  static const _longPressDuration = Duration(milliseconds: 500);
+  static const _longPressMoveThreshold = 10.0;
+
+  void _startLongPressTimer() {
+    Future.delayed(_longPressDuration, () {
+      if (_downPosition != null && !_longPressTriggered && mounted) {
+        _longPressTriggered = true;
+        widget.onLongPress?.call();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (event) {
+        _downPosition = event.position;
+        _downTime = DateTime.now();
+        _longPressTriggered = false;
+        _startLongPressTimer();
+      },
+      onPointerMove: (event) {
+        if (_downPosition != null) {
+          final distance = (event.position - _downPosition!).distance;
+          if (distance > _longPressMoveThreshold) {
+            // 手指移动超过阈值，取消长按
+            _downPosition = null;
+            _longPressTriggered = true; // 阻止长按触发
+          }
+        }
+      },
+      onPointerUp: (event) {
+        if (_downPosition != null && !_longPressTriggered) {
+          // 没触发长按，执行点击
+          widget.onTap?.call();
+        }
+        _downPosition = null;
+      },
+      child: widget.child,
+    );
   }
 }
