@@ -52,7 +52,7 @@ class _EditDialogState extends State<EditDialog> {
     _loopCount = (widget.task.loopCount ?? 0).toDouble();
     _paletteColors = (widget.task.paletteColors ?? 256).toDouble();
     _keepTransparency = widget.task.keepTransparency;
-    _backgroundColor = widget.backgroundColor ?? 0xFFFFFFFF;
+    _backgroundColor = widget.task.backgroundColor ?? 0xFFFFFFFF;
     _svgScale = widget.task.svgScale ?? 1.0;
   }
 
