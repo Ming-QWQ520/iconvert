@@ -1,7 +1,11 @@
 /// GlassThemeProvider - 液态玻璃全局状态管理
+///
+/// 背景图始终显示（不管液态玻璃开关）
+/// 液态玻璃开启时额外用 LiquidGlassView 包裹 UI
 library;
 
 import 'dart:io' as io;
+import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
@@ -40,7 +44,13 @@ class GlassProvider extends ChangeNotifier {
   }
 }
 
-/// 全局液态玻璃背景容器
+/// 全局背景 + 液态玻璃容器
+///
+/// 布局：
+/// - 底层：背景图（始终显示）
+/// - 上层：用户 UI
+///   - 液态玻璃开启时：用 LiquidGlassView 包裹（UI 上的 GlassCard 会折射背景）
+///   - 液态玻璃关闭时：直接显示 UI（背景图仍然在底层）
 class GlassBackground extends StatelessWidget {
   final Widget child;
 
@@ -50,16 +60,27 @@ class GlassBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final glass = context.watch<GlassProvider>();
 
-    if (!glass.enabled) {
-      return child;
-    }
+    // Stack: 底层背景图 + 上层 UI
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 底层：背景图（始终显示）
+        _buildBackground(glass.backgroundPath),
 
-    return LiquidGlassView(
-      backgroundWidget: _buildBackground(glass.backgroundPath),
-      pixelRatio: 0.5,
-      realTimeCapture: true,
-      useSync: true,
-      child: child,
+        // 上层：UI 内容
+        if (glass.enabled)
+          // 液态玻璃开启：用 LiquidGlassView 包裹
+          LiquidGlassView(
+            backgroundWidget: _buildBackground(glass.backgroundPath),
+            pixelRatio: 0.5,
+            realTimeCapture: true,
+            useSync: true,
+            child: child,
+          )
+        else
+          // 液态玻璃关闭：直接显示 UI
+          child,
+      ],
     );
   }
 
@@ -88,6 +109,9 @@ class GlassBackground extends StatelessWidget {
 }
 
 /// 液态玻璃卡片
+///
+/// 液态玻璃开启时：用 LiquidGlassLens（增强效果）
+/// 液态玻璃关闭时：用 BackdropFilter + 半透明背景（也有模糊效果）
 class GlassCard extends StatelessWidget {
   final Widget child;
   final double cornerRadius;
@@ -107,24 +131,25 @@ class GlassCard extends StatelessWidget {
     final glass = context.watch<GlassProvider>();
 
     if (glass.enabled) {
+      // 液态玻璃开启：用 LiquidGlassLens（增强折射 + 模糊）
       return Container(
         margin: margin,
         child: LiquidGlassLens(
           style: LiquidGlassStyle(
             shape: LiquidGlassShape.continuousRoundedRectangle(
               cornerRadius: cornerRadius,
-              borderWidth: 1.0,
+              borderWidth: 2.0,
             ),
             appearance: const LiquidGlassAppearance(
-              color: Color(0x14FFFFFF),
-              saturation: 1.05,
-              blur: LiquidGlassBlur(sigmaX: 4, sigmaY: 4),
+              color: Color(0x33FFFFFF),    // 更强的白色着色
+              saturation: 1.3,             // 更强的饱和度
+              blur: LiquidGlassBlur(sigmaX: 12, sigmaY: 12),  // 更强的模糊
             ),
             refraction: LiquidGlassRefraction(
               refractionType: OpticalRefraction(
-                refraction: 1.3,
-                refractionWidth: 16,
-                depth: 0.5,
+                refraction: 2.0,           // 更强的折射
+                refractionWidth: 32,       // 更宽的折射区域
+                depth: 1.0,                // 更深的深度
               ),
             ),
           ),
@@ -135,14 +160,27 @@ class GlassCard extends StatelessWidget {
       );
     }
 
+    // 液态玻璃关闭：用 BackdropFilter 模糊（也有玻璃感）
     return Container(
       margin: margin,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: CupertinoColors.systemBackground.withValues(alpha: 0.7),
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(cornerRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemBackground.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(cornerRadius),
+              border: Border.all(
+                color: CupertinoColors.white.withValues(alpha: 0.2),
+                width: 0.5,
+              ),
+            ),
+            child: child,
+          ),
+        ),
       ),
-      child: child,
     );
   }
 }
