@@ -1,7 +1,6 @@
 /// FileService - 文件操作封装
 ///
 /// 提供文件选择、路径处理、临时目录管理、缩略图生成等功能。
-/// 通过 file_picker 走 SAF（无需动态权限），降级用传统路径。
 library;
 
 import 'dart:io';
@@ -12,9 +11,16 @@ import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:iconvert/models/conversion_task.dart';
 
 class FileService {
-  /// 允许的文件扩展名
-  static const imageExts = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'];
-  static const videoExts = ['mp4', 'mkv', 'mov', 'avi', 'webm', 'flv', 'wmv'];
+  /// 允许的文件扩展名（FFmpeg 支持的全部主流格式）
+  static const imageExts = [
+    'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp',
+    'tiff', 'tif', 'ico', 'tga', 'ppm', 'pgm', 'pbm',
+  ];
+  static const videoExts = [
+    'mp4', 'mkv', 'mov', 'avi', 'webm', 'flv', 'wmv',
+    'mpeg', 'mpg', 'ts', 'm2ts', 'mts', '3gp', '3g2',
+    'vob', 'ogv', 'rm', 'rmvb', 'asf', 'f4v',
+  ];
 
   /// 多选文件，返回平台文件对象列表
   static Future<List<PlatformFile>> pickFiles({int maxFiles = 50}) async {
@@ -78,7 +84,7 @@ class FileService {
     return File(path);
   }
 
-  /// 生成缩略图（图片直接复制，视频用 video_thumbnail）
+  /// 生成缩略图（图片直接复制，视频用 FFmpeg 抽首帧）
   /// 返回缩略图绝对路径，失败返回 null
   static Future<String?> generateThumbnail({
     required String inputPath,
@@ -96,11 +102,8 @@ class FileService {
       );
 
       if (type == MediaFileType.image) {
-        // 图片：直接复制，UI 端用 cacheWidth 缩放显示
         await File(inputPath).copy(thumbPath);
       } else {
-        // 视频：用 FFmpeg 抽首帧生成缩略图
-        // -ss 0 -i input -frames:v 1 -vf scale=200:200:force_original_aspect_ratio=decrease
         final cmd = '-ss 0 -i "$inputPath" -frames:v 1 '
             '-vf "scale=200:200:force_original_aspect_ratio=decrease" '
             '-q:v 5 "$thumbPath" -y';
