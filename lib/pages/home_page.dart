@@ -1,20 +1,9 @@
 /// HomePage - 主界面
-///
-/// 布局：
-/// - CupertinoPageScaffold + CupertinoNavigationBar
-///   - 标题: "格式工厂"
-///   - 右侧: "全部开始" 按钮
-///   - 左侧: 设置齿轮
-/// - 文件列表（空状态显示引导卡片）
-/// - 右下角悬浮按钮（圆形加号）
-/// - 导航栏下方全局进度条（仅转换时显示）
-///
-/// 首次启动：
-/// - 检测权限和输出路径，缺失则弹出液态玻璃向导
 library;
 
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:iconvert/models/conversion_model.dart';
 import 'package:iconvert/models/conversion_task.dart';
 import 'package:iconvert/models/history_model.dart';
@@ -22,6 +11,7 @@ import 'package:iconvert/pages/history_page.dart';
 import 'package:iconvert/pages/settings_page.dart';
 import 'package:iconvert/services/file_service.dart';
 import 'package:iconvert/services/storage_service.dart';
+import 'package:iconvert/services/foreground_service.dart';
 import 'package:iconvert/widgets/file_list_tile.dart';
 import 'package:iconvert/dialogs/edit_dialog.dart';
 import 'package:iconvert/dialogs/permission_dialog.dart';
@@ -35,7 +25,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final Map<String, String> _thumbnailPaths = {};  // taskId -> thumbnailPath
+  final Map<String, String> _thumbnailPaths = {};
   bool _wizardChecked = false;
 
   @override
@@ -54,25 +44,22 @@ class _HomePageState extends State<HomePage> {
     final hasPermission = await PermissionDialog.checkStoragePermission();
     if (!hasPermission && mounted) {
       await _showPermissionWizard();
-      // 用户处理完权限后再检查路径
     }
 
     if (!mounted) return;
-    final outputDir = await StorageService.getOutputDir();
-    if (outputDir == StorageService.defaultOutputDir && mounted) {
+    // 用 isFirstRunDone 标记判断，避免每次都弹
+    final firstRunDone = await StorageService.isFirstRunDone();
+    if (!firstRunDone && mounted) {
       await _showPathWizard();
     }
   }
 
   Future<void> _showPermissionWizard() async {
-    final granted = await showCupertinoModalPopup<bool>(
+    await showCupertinoModalPopup<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => const PermissionDialog(),
     );
-    if (granted == true && mounted) {
-      // 权限获取后继续
-    }
   }
 
   Future<void> _showPathWizard() async {
@@ -95,7 +82,6 @@ class _HomePageState extends State<HomePage> {
       try {
         final tempPath = await FileService.copyToTempInput(file);
         final type = FileService.inferType(file.name);
-        // 默认输出格式
         final defaultOutput = type == MediaFileType.image ? 'jpg' : 'mp4';
 
         final task = ConversionTask(
@@ -108,11 +94,8 @@ class _HomePageState extends State<HomePage> {
           createdAt: DateTime.now(),
         );
         newTasks.add(task);
-
-        // 后台生成缩略图
         _generateThumbnail(task);
       } catch (e) {
-        // 单个文件失败不影响其他
         debugPrint('添加任务失败 ${file.name}: $e');
       }
     }
@@ -139,155 +122,147 @@ class _HomePageState extends State<HomePage> {
     final model = context.read<ConversionModel>();
     final history = context.read<HistoryModel>();
     final outputDir = await StorageService.getOutputDir();
+    final total = model.tasks.length;
 
     // 启动前台服务通知
-    await _startForegroundNotification(model.tasks.length);
+    await ForegroundService.start(total: total);
 
     await model.startAll(
       outputDir: outputDir,
       onTaskCompleted: (task) async {
         await history.add(task);
-        await _updateForegroundNotification(
-          completed: model.completedCount,
-          total: model.tasks.length,
+        // 更新通知进度
+        await ForegroundService.updateNotification(
+          completed: model.completedCount + 1,
+          total: total,
+          currentFileName: task.originalName,
         );
       },
     );
 
-    // 完成 3 秒后停止前台服务
-    await _stopForegroundNotification();
-  }
-
-  Future<void> _startForegroundNotification(int total) async {
-    // 简化实现：前台服务封装在另一个服务，这里仅占位
-    // 实际项目可调用 FlutterForegroundTask.startService()
-    debugPrint('启动前台服务: 共 $total 个任务');
-  }
-
-  Future<void> _updateForegroundNotification({
-    required int completed,
-    required int total,
-  }) async {
-    debugPrint('前台服务进度: $completed / $total');
-  }
-
-  Future<void> _stopForegroundNotification() async {
+    // 完成后通知 + 3 秒后停止前台服务
+    await ForegroundService.updateNotification(
+      completed: total,
+      total: total,
+      currentFileName: '全部完成',
+    );
     await Future.delayed(const Duration(seconds: 3));
-    debugPrint('停止前台服务');
+    await ForegroundService.stop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('格式工厂'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Icon(CupertinoIcons.list_bullet),
-          onPressed: () => _navigateToHistory(),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              child: const Icon(CupertinoIcons.settings),
-              onPressed: () => _navigateToSettings(),
-            ),
-            Consumer<ConversionModel>(
-              builder: (context, model, _) {
-                if (model.isConverting) {
+    return WithForegroundTask(
+      child: CupertinoPageScaffold(
+        navigationBar: CupertinoNavigationBar(
+          middle: const Text('格式工厂'),
+          leading: CupertinoButton(
+            padding: EdgeInsets.zero,
+            child: const Icon(CupertinoIcons.list_bullet),
+            onPressed: () => _navigateToHistory(),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                child: const Icon(CupertinoIcons.settings),
+                onPressed: () => _navigateToSettings(),
+              ),
+              Consumer<ConversionModel>(
+                builder: (context, model, _) {
+                  if (model.isConverting) {
+                    return CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      child: const Text(
+                        '取消',
+                        style: TextStyle(color: CupertinoColors.destructiveRed),
+                      ),
+                      onPressed: () {
+                        model.cancelConversion();
+                        ForegroundService.stop();
+                      },
+                    );
+                  }
                   return CupertinoButton(
                     padding: EdgeInsets.zero,
-                    child: const Text(
-                      '取消',
-                      style: TextStyle(color: CupertinoColors.destructiveRed),
-                    ),
-                    onPressed: () => model.cancelConversion(),
-                  );
-                }
-                return CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  child: Text(
-                    '全部开始',
-                    style: TextStyle(
-                      color: model.tasks.isEmpty
-                          ? CupertinoColors.systemGrey
-                          : const Color(0xFF007AFF),
-                    ),
-                  ),
-                  onPressed: model.tasks.isEmpty ? null : _startAll,
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-      child: SafeArea(
-        child: Stack(
-          children: [
-            // 列表
-            Consumer<ConversionModel>(
-              builder: (context, model, _) {
-                if (model.tasks.isEmpty) {
-                  return _buildEmptyState();
-                }
-
-                return Column(
-                  children: [
-                    // 全局进度条（仅转换时显示）
-                    if (model.isConverting)
-                      _buildProgressBar(model.overallProgress),
-
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.only(top: 8, bottom: 80),
-                        itemCount: model.tasks.length,
-                        itemBuilder: (context, index) {
-                          final task = model.tasks[index];
-                          return FileListTile(
-                            task: task,
-                            thumbnailPath: _thumbnailPaths[task.id],
-                            onTap: () => _showEditDialog(task),
-                          );
-                        },
+                    child: Text(
+                      '全部开始',
+                      style: TextStyle(
+                        color: model.tasks.isEmpty
+                            ? CupertinoColors.systemGrey
+                            : const Color(0xFF007AFF),
                       ),
                     ),
-                  ],
-                );
-              },
-            ),
+                    onPressed: model.tasks.isEmpty ? null : _startAll,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Consumer<ConversionModel>(
+                builder: (context, model, _) {
+                  if (model.tasks.isEmpty) {
+                    return _buildEmptyState();
+                  }
+                  return Column(
+                    children: [
+                      if (model.isConverting)
+                        _buildProgressBar(model.overallProgress),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.only(top: 8, bottom: 80),
+                          itemCount: model.tasks.length,
+                          itemBuilder: (context, index) {
+                            final task = model.tasks[index];
+                            return FileListTile(
+                              task: task,
+                              thumbnailPath: _thumbnailPaths[task.id],
+                              onTap: () => _showEditDialog(task),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
 
-            // 悬浮加号按钮
-            Positioned(
-              right: 20,
-              bottom: 20,
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF007AFF),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF007AFF).withOpacity(0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  child: const Icon(
-                    CupertinoIcons.add,
-                    color: CupertinoColors.white,
-                    size: 28,
+              // 悬浮加号按钮
+              Positioned(
+                right: 20,
+                bottom: 20,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF007AFF),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF007AFF).withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  onPressed: _pickFiles,
+                  child: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    child: const Icon(
+                      CupertinoIcons.add,
+                      color: CupertinoColors.white,
+                      size: 28,
+                    ),
+                    onPressed: _pickFiles,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -299,7 +274,7 @@ class _HomePageState extends State<HomePage> {
         margin: const EdgeInsets.all(32),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: CupertinoColors.systemBackground.withOpacity(0.7),
+          color: CupertinoColors.systemBackground.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -313,19 +288,13 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             const Text(
               '还没有文件',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             const Text(
               '点击右下角加号选择需要转换的图片或视频',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: CupertinoColors.systemGrey,
-              ),
+              style: TextStyle(fontSize: 14, color: CupertinoColors.systemGrey),
             ),
             const SizedBox(height: 24),
             CupertinoButton.filled(
@@ -386,24 +355,20 @@ class _HomePageState extends State<HomePage> {
 
   void _navigateToHistory() {
     Navigator.of(context).push(
-      CupertinoPageRoute<void>(
-        builder: (_) => const HistoryPage(),
-      ),
+      CupertinoPageRoute<void>(builder: (_) => const HistoryPage()),
     );
   }
 
   void _navigateToSettings() {
     Navigator.of(context).push(
-      CupertinoPageRoute<void>(
-        builder: (_) => const SettingsPage(),
-      ),
+      CupertinoPageRoute<void>(builder: (_) => const SettingsPage()),
     );
   }
 }
 
-/// Cupertino 风格的线性进度条（用自定义实现替代 Material 的 LinearProgressIndicator）
+/// Cupertino 风格的线性进度条
 class LinearProgressIndicatorCupertino extends StatelessWidget {
-  final double value;           // 0.0 - 1.0
+  final double value;
   final Color backgroundColor;
   final Color foregroundColor;
 
@@ -418,18 +383,10 @@ class LinearProgressIndicatorCupertino extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: backgroundColor,
-          ),
-        ),
+        Container(decoration: BoxDecoration(color: backgroundColor)),
         FractionallySizedBox(
           widthFactor: value.clamp(0.0, 1.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: foregroundColor,
-            ),
-          ),
+          child: Container(decoration: BoxDecoration(color: foregroundColor)),
         ),
       ],
     );
