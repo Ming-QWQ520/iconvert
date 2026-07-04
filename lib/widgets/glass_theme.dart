@@ -1,11 +1,9 @@
 /// GlassThemeProvider - 液态玻璃全局状态管理
-///
-/// 管理液态玻璃开关 + 背景图路径
-/// 当开关开启时，APP 全局使用 LiquidGlassView + LiquidGlassLens 效果
 library;
 
+import 'dart:io' as io;
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Material, MaterialType;
+import 'package:provider/provider.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import 'package:iconvert/services/storage_service.dart';
 import 'package:iconvert/services/background_service.dart';
@@ -43,8 +41,6 @@ class GlassProvider extends ChangeNotifier {
 }
 
 /// 全局液态玻璃背景容器
-/// 当液态玻璃开启时，用 LiquidGlassView 包裹整个 APP 内容
-/// 当关闭时，直接返回 child（不影响性能）
 class GlassBackground extends StatelessWidget {
   final Widget child;
 
@@ -55,11 +51,9 @@ class GlassBackground extends StatelessWidget {
     final glass = context.watch<GlassProvider>();
 
     if (!glass.enabled) {
-      // 液态玻璃关闭：直接返回，不影响性能
       return child;
     }
 
-    // 液态玻璃开启：用 LiquidGlassView 包裹
     return LiquidGlassView(
       backgroundWidget: _buildBackground(glass.backgroundPath),
       pixelRatio: 0.5,
@@ -79,7 +73,7 @@ class GlassBackground extends StatelessWidget {
       );
     }
     return Image.file(
-      androidFile.File(path),
+      io.File(path),
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
@@ -94,8 +88,6 @@ class GlassBackground extends StatelessWidget {
 }
 
 /// 液态玻璃卡片
-/// 当液态玻璃开启时，用 LiquidGlassLens 包裹内容
-/// 当关闭时，用普通半透明背景
 class GlassCard extends StatelessWidget {
   final Widget child;
   final double cornerRadius;
@@ -115,7 +107,6 @@ class GlassCard extends StatelessWidget {
     final glass = context.watch<GlassProvider>();
 
     if (glass.enabled) {
-      // 液态玻璃开启：用 LiquidGlassLens
       return Container(
         margin: margin,
         child: LiquidGlassLens(
@@ -144,7 +135,6 @@ class GlassCard extends StatelessWidget {
       );
     }
 
-    // 液态玻璃关闭：普通半透明背景
     return Container(
       margin: margin,
       padding: padding,
@@ -156,6 +146,3 @@ class GlassCard extends StatelessWidget {
     );
   }
 }
-
-// 导入 dart:io 用别名避免冲突
-import 'dart:io' as androidFile;
