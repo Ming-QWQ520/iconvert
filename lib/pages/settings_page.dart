@@ -1,8 +1,13 @@
 /// SettingsPage - 设置页
+///
+/// 顶部说明卡片用液态玻璃质感，标题改为 "iConvert - 格式转换器"
+/// GitHub 仓库点击 → 液态玻璃确认弹窗 → 跳转
+/// 开发者行增加头像图标（Ming256x256.png）
 library;
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
+import 'dart:ui';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:iconvert/services/storage_service.dart';
 import 'package:iconvert/dialogs/path_setting_dialog.dart';
 
@@ -36,6 +41,48 @@ class _SettingsPageState extends State<SettingsPage> {
     await _loadOutputDir();
   }
 
+  /// GitHub 跳转：液态玻璃确认弹窗 → 点击"好"才跳转
+  Future<void> _showGithubConfirm() async {
+    await showCupertinoModalPopup<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _GlassConfirmDialog(
+        title: '即将跳转',
+        message: '即将打开浏览器跳转至 GitHub 仓库\nhttps://github.com/Ming-QWQ520/iconvert',
+        confirmText: '好',
+        cancelText: '取消',
+        onConfirm: () async {
+          Navigator.of(ctx).pop();
+          await _launchGithub();
+        },
+        onCancel: () => Navigator.of(ctx).pop(),
+      ),
+    );
+  }
+
+  Future<void> _launchGithub() async {
+    const url = 'https://github.com/Ming-QWQ520/iconvert';
+    try {
+      final uri = Uri.parse(url);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            content: Text('无法打开浏览器: $e'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('好'),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -44,6 +91,11 @@ class _SettingsPageState extends State<SettingsPage> {
         child: ListView(
           padding: const EdgeInsets.only(top: 24),
           children: [
+            // 液态玻璃质感说明卡片
+            _buildGlassHeader(),
+
+            const SizedBox(height: 24),
+
             // 通用设置组
             CupertinoFormSection.insetGrouped(
               header: const Text('通用'),
@@ -54,10 +106,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     _outputDir,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: CupertinoColors.systemGrey,
-                    ),
+                    style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
                   ),
                   trailing: const CupertinoListTileChevron(),
                   onTap: _editPath,
@@ -83,54 +132,28 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: const Text('转换引擎'),
                   additionalInfo: const Text('FFmpeg (LGPL)'),
                 ),
+                // 开发者行：左侧头像 + 名称
                 CupertinoListTile.notched(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/ming_avatar.png',
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                   title: const Text('开发者'),
                   additionalInfo: const Text('明 (Ming)'),
                 ),
+                // GitHub 仓库：点击跳转
                 CupertinoListTile.notched(
                   title: const Text('GitHub 仓库'),
                   additionalInfo: const Text('Ming-QWQ520'),
                   trailing: const CupertinoListTileChevron(),
-                  onTap: () {
-                    // 直接显示 GitHub URL 弹窗
-                    _showGithubDialog();
-                  },
+                  onTap: _showGithubConfirm,
                 ),
               ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // 说明卡片
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemBackground.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'iConvert · 全格式转换器',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '• 支持 JPG/PNG/WebP/BMP/TIFF/GIF 等图片格式\n'
-                    '• 支持 MP4/MKV/MOV/AVI/WebM/FLV/WMV/3GP 等视频格式\n'
-                    '• 批量转换，后台队列执行\n'
-                    '• 硬件编码优先，自动软件降级\n'
-                    '• 所有处理均在本地完成，不上传任何数据',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: CupertinoColors.systemGrey,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
             ),
 
             const SizedBox(height: 16),
@@ -152,10 +175,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   SizedBox(height: 4),
                   Text(
                     'github.com/Ming-QWQ520/iconvert',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: CupertinoColors.systemGrey2,
-                    ),
+                    style: TextStyle(fontSize: 11, color: CupertinoColors.systemGrey2),
                   ),
                 ],
               ),
@@ -166,65 +186,166 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showGithubDialog() {
-    const url = 'https://github.com/Ming-QWQ520/iconvert';
-    showCupertinoDialog<void>(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('GitHub 仓库'),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            children: [
-              const Text(
-                url,
-                style: TextStyle(fontSize: 13),
-                textAlign: TextAlign.center,
+  /// 液态玻璃质感顶部说明卡片
+  Widget _buildGlassHeader() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemBackground.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: CupertinoColors.separator.withValues(alpha: 0.15),
+                width: 0.5,
               ),
-              const SizedBox(height: 12),
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                color: const Color(0xFFF2F2F7),
-                borderRadius: BorderRadius.circular(8),
-                minSize: 0,
-                onPressed: () {
-                  Clipboard.setData(const ClipboardData(text: url));
-                  // 复制成功提示（用 Scaffold 的方式不合适，直接关闭弹窗）
-                  Navigator.of(ctx).pop();
-                  _showToast('已复制到剪贴板');
-                },
-                child: const Text(
-                  '复制链接',
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.cube_box,
+                      size: 22,
+                      color: Color(0xFF007AFF),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'iConvert - 格式转换器',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF007AFF),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '• 支持 JPEG/PNG/WebP/HEIC/BMP/ICO 等图片格式\n'
+                  '• 支持 MP4/MKV/MOV/AVI/WebM/FLV/GIF 等视频格式\n'
+                  '• 批量转换，后台队列执行\n'
+                  '• 硬件编码优先，自动软件降级\n'
+                  '• 所有处理均在本地完成，不上传任何数据',
                   style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF007AFF),
+                    fontSize: 12,
+                    color: CupertinoColors.systemGrey,
+                    height: 1.6,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('好'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        ],
       ),
     );
   }
+}
 
-  void _showToast(String msg) {
-    showCupertinoDialog<void>(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        content: Text(msg),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('好'),
-            onPressed: () => Navigator.of(ctx).pop(),
+/// 液态玻璃确认弹窗（用于 GitHub 跳转确认）
+class _GlassConfirmDialog extends StatelessWidget {
+  final String title;
+  final String message;
+  final String confirmText;
+  final String cancelText;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  const _GlassConfirmDialog({
+    required this.title,
+    required this.message,
+    required this.confirmText,
+    required this.cancelText,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(24),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemBackground.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: CupertinoColors.separator.withValues(alpha: 0.15),
+                width: 0.5,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 图标
+                Container(
+                  width: 56,
+                  height: 56,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF007AFF).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.arrow_up_right_square,
+                    size: 28,
+                    color: Color(0xFF007AFF),
+                  ),
+                ),
+                // 标题
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                // 消息
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey, height: 1.4),
+                ),
+                const SizedBox(height: 24),
+                // 按钮
+                Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoButton(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        color: CupertinoColors.systemGrey5,
+                        borderRadius: BorderRadius.circular(10),
+                        onPressed: onCancel,
+                        child: Text(
+                          cancelText,
+                          style: const TextStyle(fontSize: 15, color: CupertinoColors.systemGrey),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: CupertinoButton.filled(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        borderRadius: BorderRadius.circular(10),
+                        onPressed: onConfirm,
+                        child: Text(confirmText, style: const TextStyle(fontSize: 15)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
