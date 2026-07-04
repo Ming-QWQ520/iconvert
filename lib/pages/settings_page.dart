@@ -170,11 +170,11 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: const Text('GitHub 仓库'),
-        content: const Padding(
-          padding: EdgeInsets.only(top: 8),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
           child: SelectableText(
             'https://github.com/Ming-QWQ520/iconvert',
-            style: TextStyle(fontSize: 13),
+            style: const TextStyle(fontSize: 13),
           ),
         ),
         actions: [
