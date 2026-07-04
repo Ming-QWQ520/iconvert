@@ -14,6 +14,7 @@ class StorageService {
   static const _keyOutputDir = 'iconvert_output_dir';
   static const _keyFirstRunDone = 'iconvert_first_run_done';
   static const _keyFilePickerType = 'iconvert_file_picker_type';
+  static const _keyLiquidGlass = 'iconvert_liquid_glass';
   static const _defaultOutputDir = '/storage/emulated/0/Download/iConvert';
 
   static Future<String> getOutputDir() async {
@@ -43,6 +44,18 @@ class StorageService {
   static Future<void> setFilePickerType(FilePickerType type) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyFilePickerType, type.index);
+  }
+
+  /// 获取液态玻璃开关（默认关闭）
+  static Future<bool> isLiquidGlassEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyLiquidGlass) ?? false;
+  }
+
+  /// 设置液态玻璃开关
+  static Future<void> setLiquidGlassEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyLiquidGlass, enabled);
   }
 
   static String get defaultOutputDir => _defaultOutputDir;
