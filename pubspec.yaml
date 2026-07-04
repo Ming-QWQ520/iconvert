@@ -21,6 +21,10 @@ dependencies:
   url_launcher: ^6.2.5
   quick_actions: ^1.0.7
   image_picker: ^1.0.7
+  flutter_device_apps: ^0.8.1
+  just_audio: ^0.9.39
+  video_player: ^2.8.7
+  chewie: ^1.8.5
 
 dev_dependencies:
   flutter_test:
