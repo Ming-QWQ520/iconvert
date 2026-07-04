@@ -70,6 +70,7 @@ class ConversionModel extends ChangeNotifier {
   Future<void> startAll({
     required String outputDir,
     required Function(ConversionTask completed) onTaskCompleted,
+    Function(ConversionTask task, double progress)? onProgress,
     Function(ConversionTask failed)? onTaskFailed,
   }) async {
     if (_isConverting) return;
@@ -113,6 +114,10 @@ class ConversionModel extends ChangeNotifier {
                   status: TaskStatus.converting,
                   progress: progress,
                 ));
+                // 通知外部（用于通知栏进度更新）
+                if (onProgress != null) {
+                  onProgress(_tasks[current], progress);
+                }
               }
             },
           );
