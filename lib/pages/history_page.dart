@@ -253,9 +253,10 @@ class _HistoryCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 缩略图（点击 → 预览）
+              // 缩略图（点击 → 预览，长按 → 打开方式）
               GestureDetector(
                 onTap: onTap,
+                onLongPress: onLongPress,
                 child: _buildThumbnail(),
               ),
               const SizedBox(width: 12),
