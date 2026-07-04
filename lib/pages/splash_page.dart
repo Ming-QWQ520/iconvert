@@ -132,7 +132,7 @@ class _SplashScreenState extends State<SplashScreen>
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
-              color: const Color(0xFFFFFFFF).withOpacity(0.1),
+              color: const Color(0xFFFFFFFF).withValues(alpha: 0.1),
             ),
           ),
 
@@ -143,35 +143,27 @@ class _SplashScreenState extends State<SplashScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 图标脉冲
+                // 图标脉冲（用真实 app 图标）
                 ScaleTransition(
                   scale: _pulseAnimation,
                   child: Container(
-                    width: 80,
-                    height: 80,
+                    width: 100,
+                    height: 100,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF5AC8FA), Color(0xFF007AFF)],
-                      ),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF007AFF).withOpacity(0.4),
+                          color: const Color(0xFF007AFF).withValues(alpha: 0.4),
                           blurRadius: 20,
                           spreadRadius: 2,
                         ),
                       ],
                     ),
-                    child: const Center(
-                      child: Text(
-                        'iC',
-                        style: TextStyle(
-                          color: CupertinoColors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.asset(
+                        'assets/app_icon.png',
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
