@@ -257,6 +257,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
+      backgroundColor: const Color(0x00000000),
       navigationBar: const CupertinoNavigationBar(middle: Text('设置'), backgroundColor: CupertinoColors.transparent, border: null),
       child: SafeArea(
         child: ListView(
@@ -267,107 +268,102 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const SizedBox(height: 24),
 
-            // 通用设置组
-            CupertinoFormSection.insetGrouped(
-              header: const Text('通用'),
-              children: [
-                CupertinoListTile.notched(
-                  title: const Text('输出路径'),
-                  subtitle: Text(
-                    _outputDir,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+            // 通用设置组（用 GlassCard 包裹）
+            GlassCard(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 12, top: 8, bottom: 4),
+                    child: Text('通用', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: CupertinoColors.systemGrey)),
                   ),
-                  trailing: const CupertinoListTileChevron(),
-                  onTap: _editPath,
-                ),
-                CupertinoListTile.notched(
-                  title: const Text('清除缓存'),
-                  subtitle: const Text(
-                    '清理临时文件和预览文件',
-                    style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
-                  ),
-                  trailing: const CupertinoListTileChevron(),
-                  onTap: _clearCache,
-                ),
-                CupertinoListTile.notched(
-                  title: const Text('全 UI 液态玻璃'),
-                  subtitle: const Text(
-                    '开启后所有界面使用液态玻璃效果',
-                    style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
-                  ),
-                  trailing: CupertinoSwitch(
-                    value: _liquidGlass,
-                    onChanged: _toggleLiquidGlass,
-                  ),
-                ),
-                // 背景设置（仅在液态玻璃开启时显示）
-                if (_liquidGlass) ...[
                   CupertinoListTile.notched(
-                    title: const Text('背景图片'),
-                    subtitle: const Text(
-                      '选择液态玻璃背景图',
-                      style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+                    title: const Text('输出路径'),
+                    subtitle: Text(_outputDir, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: _editPath,
+                  ),
+                  CupertinoListTile.notched(
+                    title: const Text('清除缓存'),
+                    subtitle: const Text('清理临时文件和预览文件',
+                      style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: _clearCache,
+                  ),
+                  CupertinoListTile.notched(
+                    title: const Text('全 UI 液态玻璃'),
+                    subtitle: const Text('开启后所有界面使用液态玻璃效果',
+                      style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+                    trailing: CupertinoSwitch(value: _liquidGlass, onChanged: _toggleLiquidGlass),
+                  ),
+                  if (_liquidGlass) ...[
+                    CupertinoListTile.notched(
+                      title: const Text('背景图片'),
+                      subtitle: const Text('选择液态玻璃背景图',
+                        style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+                      trailing: const CupertinoListTileChevron(),
+                      onTap: _pickBackground,
                     ),
-                    trailing: const CupertinoListTileChevron(),
-                    onTap: _pickBackground,
-                  ),
-                  CupertinoListTile.notched(
-                    title: const Text('恢复默认背景'),
-                    trailing: const CupertinoListTileChevron(),
-                    onTap: _resetBackground,
-                  ),
+                    CupertinoListTile.notched(
+                      title: const Text('恢复默认背景'),
+                      trailing: const CupertinoListTileChevron(),
+                      onTap: _resetBackground,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
 
             const SizedBox(height: 24),
 
-            // 关于
-            CupertinoFormSection.insetGrouped(
-              header: const Text('关于'),
-              children: [
-                CupertinoListTile.notched(
-                  title: const Text('应用版本'),
-                  additionalInfo: const Text('1.0.0'),
-                ),
-                CupertinoListTile.notched(
-                  title: const Text('Flutter SDK'),
-                  additionalInfo: const Text('3.44.1'),
-                ),
-                CupertinoListTile.notched(
-                  title: const Text('转换引擎'),
-                  additionalInfo: const Text('FFmpeg (LGPL)'),
-                ),
-                // 开发者行：左侧头像 + 名称
-                CupertinoListTile.notched(
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      'assets/ming_avatar.png',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.cover,
-                    ),
+            // 关于（用 GlassCard 包裹）
+            GlassCard(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 12, top: 8, bottom: 4),
+                    child: Text('关于', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: CupertinoColors.systemGrey)),
                   ),
-                  title: const Text('开发者'),
-                  additionalInfo: const Text('明 (Ming)'),
-                ),
-                // GitHub 仓库：点击跳转
-                CupertinoListTile.notched(
-                  title: const Text('GitHub 仓库'),
-                  additionalInfo: const Text('Ming-QWQ520'),
-                  trailing: const CupertinoListTileChevron(),
-                  onTap: _showGithubConfirm,
-                ),
-              ],
+                  CupertinoListTile.notched(
+                    title: const Text('应用版本'),
+                    additionalInfo: const Text('1.0.0'),
+                  ),
+                  CupertinoListTile.notched(
+                    title: const Text('Flutter SDK'),
+                    additionalInfo: const Text('3.44.1'),
+                  ),
+                  CupertinoListTile.notched(
+                    title: const Text('转换引擎'),
+                    additionalInfo: const Text('FFmpeg (LGPL)'),
+                  ),
+                  CupertinoListTile.notched(
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.asset('assets/ming_avatar.png', width: 28, height: 28, fit: BoxFit.cover),
+                    ),
+                    title: const Text('开发者'),
+                    additionalInfo: const Text('明 (Ming)'),
+                  ),
+                  CupertinoListTile.notched(
+                    title: const Text('GitHub 仓库'),
+                    additionalInfo: const Text('Ming-QWQ520'),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: _showGithubConfirm,
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 16),
 
             // 版权信息
-            Container(
+            GlassCard(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               padding: const EdgeInsets.all(12),
               child: const Column(
