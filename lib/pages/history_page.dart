@@ -19,6 +19,8 @@ import 'package:iconvert/models/conversion_model.dart';
 import 'package:iconvert/models/conversion_task.dart';
 import 'package:iconvert/dialogs/delete_confirm_dialog.dart';
 import 'package:iconvert/dialogs/preview_dialog.dart';
+import 'package:iconvert/dialogs/audio_preview_dialog.dart';
+import 'package:iconvert/dialogs/video_preview_dialog.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -105,7 +107,6 @@ class _HistoryPageState extends State<HistoryPage> {
   void _openPreview(ConversionTask task) {
     final exists = _fileExists[task.id] ?? false;
     if (!exists) {
-      // 文件不存在，显示提示
       showCupertinoDialog<void>(
         context: context,
         builder: (ctx) => CupertinoAlertDialog(
@@ -121,10 +122,26 @@ class _HistoryPageState extends State<HistoryPage> {
       );
       return;
     }
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (_) => PreviewDialog(task: task),
-    );
+    // 根据媒体类型选择预览方式
+    if (task.type == MediaFileType.image) {
+      // 图片用 PreviewDialog 对比预览
+      showCupertinoModalPopup<void>(
+        context: context,
+        builder: (_) => PreviewDialog(task: task),
+      );
+    } else if (task.type == MediaFileType.audio) {
+      // 音频用波形预览弹窗
+      showCupertinoModalPopup<void>(
+        context: context,
+        builder: (_) => AudioPreviewDialog(task: task),
+      );
+    } else {
+      // 视频用缩略图大图预览
+      showCupertinoModalPopup<void>(
+        context: context,
+        builder: (_) => VideoPreviewDialog(task: task),
+      );
+    }
   }
 
   Future<void> _openWith(ConversionTask task) async {
