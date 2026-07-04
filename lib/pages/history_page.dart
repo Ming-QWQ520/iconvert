@@ -162,7 +162,9 @@ class _HistoryPageState extends State<HistoryPage> {
       );
       return;
     }
-    // 用 open_filex 调起原生选择器
+    // 用 open_filex 打开文件，系统会弹出"打开方式"选择器
+    // open_filex 在 Android 上会触发 ACTION_VIEW Intent
+    // 如果系统有多个应用可打开，会自动弹出选择器
     final result = await OpenFilex.open(task.outputPath!);
     if (result.type != ResultType.done) {
       if (mounted) {
