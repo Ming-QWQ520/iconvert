@@ -195,6 +195,8 @@ class ConversionTask {
       case 'gif':
         return [ImageFormatTrait.lossy, ImageFormatTrait.animation, ImageFormatTrait.transparency];
       case 'svg':
+        // SVG 作为输出格式不支持（FFmpeg 无法写矢量格式）
+        // 但如果输入是 SVG，可以读入后转为位图
         return [ImageFormatTrait.vector, ImageFormatTrait.transparency];
       default:
         return [ImageFormatTrait.lossy];
