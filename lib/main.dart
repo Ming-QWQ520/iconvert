@@ -28,11 +28,7 @@ void main() {
     }
   });
   quickActions.setShortcutItems(const [
-    ShortcutItem(
-      type: 'action_start_conversion',
-      localizedTitle: '开始转换',
-      icon: 'ic_launcher',
-    ),
+    ShortcutItem(type: 'action_start_conversion', localizedTitle: '开始转换', icon: 'ic_launcher'),
   ]);
 
   runApp(const IConvertApp());
@@ -49,23 +45,26 @@ class IConvertApp extends StatelessWidget {
         ChangeNotifierProvider<HistoryModel>(create: (_) => HistoryModel()..load()),
         ChangeNotifierProvider<GlassProvider>(create: (_) => GlassProvider()..load()),
       ],
-      child: CupertinoApp(
-        title: 'iConvert',
-        debugShowCheckedModeBanner: false,
-        theme: const CupertinoThemeData(
-          brightness: Brightness.light,
-          primaryColor: Color(0xFF007AFF),
-          // scaffold 背景透明，让背景图透出
-          scaffoldBackgroundColor: Color(0x00000000),
-          barBackgroundColor: Color(0x00000000),
-          textTheme: CupertinoTextThemeData(primaryColor: Color(0xFF007AFF)),
-        ),
-        // 用 builder 全局包裹所有路由（包括 pushReplacement 后的页面）
-        // 这样背景图在所有页面都显示
-        builder: (context, child) {
-          return GlassBackground(child: child!);
+      child: Consumer<GlassProvider>(
+        builder: (context, glass, child) {
+          return CupertinoApp(
+            title: 'iConvert',
+            debugShowCheckedModeBanner: false,
+            theme: CupertinoThemeData(
+              brightness: Brightness.light,
+              primaryColor: const Color(0xFF007AFF),
+              // 开启液态玻璃：透明背景（让背景图透出）
+              // 未开启：白色背景
+              scaffoldBackgroundColor: glass.enabled ? const Color(0x00000000) : const Color(0xFFF2F2F7),
+              barBackgroundColor: glass.enabled ? const Color(0x00000000) : const Color(0xFFF8F8F8),
+              textTheme: const CupertinoTextThemeData(primaryColor: Color(0xFF007AFF)),
+            ),
+            builder: (context, child) {
+              return GlassBackground(child: child!);
+            },
+            home: const SplashScreen(),
+          );
         },
-        home: const SplashScreen(),
       ),
     );
   }
