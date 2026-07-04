@@ -186,27 +186,27 @@ class _HistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dismissible(
       key: ValueKey(task.id),
-      // 左滑：删除（红色背景）
+      // 手指向右滑（startToEnd）：重新转换 → 蓝色背景靠左
       background: _buildSwipeBackground(
-        CupertinoColors.destructiveRed,
-        CupertinoIcons.delete,
-        '删除',
-        Alignment.centerRight,
-      ),
-      // 右滑：重新转换（蓝色背景）
-      secondaryBackground: _buildSwipeBackground(
         const Color(0xFF007AFF),
         CupertinoIcons.arrow_clockwise,
         '重新转换',
         Alignment.centerLeft,
       ),
+      // 手指向左滑（endToStart）：删除 → 红色背景靠右
+      secondaryBackground: _buildSwipeBackground(
+        CupertinoColors.destructiveRed,
+        CupertinoIcons.delete,
+        '删除',
+        Alignment.centerRight,
+      ),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
-          // 右滑 → 重新转换
+          // 手指向右滑 → 重新转换
           await _reConvert(context);
-          return false;  // 不关闭，手动处理
+          return false;
         } else {
-          // 左滑 → 删除确认
+          // 手指向左滑 → 删除确认
           final action = await DeleteConfirmDialog.show(
             context,
             fileName: task.originalName,
