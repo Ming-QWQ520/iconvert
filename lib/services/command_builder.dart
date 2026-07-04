@@ -152,10 +152,13 @@ class CommandBuilder {
         break;
       case 'heic':
       case 'heif':
-        // HEIF: 用 libx265 编码 + heic 容器
+        // HEIF: 尝试用 libx265 编码 + heic 容器
+        // 注意：FFmpeg 默认可能不支持 heic 容器输出，会自动 fallback 到 mp4
         final crf = (51 - (task.quality / 100) * 40).round().clamp(0, 51);
         args.addAll(['-c:v', 'libx265', '-crf', crf.toString(), '-pix_fmt', 'yuv420p']);
-        args.addAll(['-tag:v', 'hvc1', '-f', 'heic']);
+        args.addAll(['-tag:v', 'hvc1']);
+        // 不指定 -f heic，让 FFmpeg 根据扩展名自动选择容器
+        // 如果 heic 不支持会 fallback 到 mp4/mov
         break;
       case 'png':
         args.addAll(['-compression_level', '6']);
@@ -166,8 +169,9 @@ class CommandBuilder {
         // 无损格式，FFmpeg 原生支持，无需额外参数
         break;
       case 'ico':
-        // ICO: 用 PNG 编码写入 ICO 容器
-        args.addAll(['-c:v', 'png']);
+        // ICO 实际是容器格式，FFmpeg 用 image2 muxer + png 编码
+        // 输出 .ico 扩展名时 FFmpeg 会自动处理
+        args.addAll(['-c:v', 'png', '-f', 'image2']);
         break;
     }
 
