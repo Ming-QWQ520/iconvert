@@ -1,14 +1,16 @@
-/// EditDialog - 编辑参数弹窗（内嵌实时预览）
+/// EditDialog - 全屏编辑弹窗
 ///
-/// 布局：
-/// - 顶部：实时预览区（左右拖动分隔线对比原图与输出效果，自动生成）
-/// - 中部：格式选择（网格按钮）
-/// - 下部：动态参数（按格式特性显示）
-/// - 底部：确认/取消
+/// 设计：
+/// - 全屏弹窗（覆盖整个屏幕，包括状态栏区域）
+/// - 状态栏透明，与页面合并
+/// - 顶部：原图与输出效果对比预览（占大部分屏幕）
+/// - 中部：格式选择 + 动态参数
+/// - 底部：确认/取消按钮
 library;
 
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:iconvert/models/conversion_model.dart';
 import 'package:iconvert/models/conversion_task.dart';
@@ -41,7 +43,6 @@ class _EditDialogState extends State<EditDialog> {
   // 预览状态
   String? _previewPath;
   bool _previewLoading = false;
-  String? _previewError;
   double _splitRatio = 0.5;
 
   @override
@@ -71,26 +72,19 @@ class _EditDialogState extends State<EditDialog> {
 
   bool get _isImage => widget.task.type == MediaFileType.image;
 
-  /// 图片输出格式（移除 GIF，因为图片转 GIF 不需要；移除 SVG，因为 FFmpeg 不支持写 SVG）
   Map<String, String> get _imageFormats => const {
     'jpg': 'JPEG', 'png': 'PNG', 'webp': 'WebP',
     'heic': 'HEIC', 'bmp': 'BMP', 'ico': 'ICO',
   };
 
-  /// 视频输出格式（增加 GIF 用于视频转 GIF 动图）
   Map<String, String> get _videoFormats => const {
     'mp4': 'MP4', 'mkv': 'MKV', 'webm': 'WebM',
     'mov': 'MOV', 'avi': 'AVI', 'flv': 'FLV', 'gif': 'GIF',
   };
 
-  /// 生成预览图
   Future<void> _generatePreview() async {
-    if (!_isImage) return;  // 视频不生成预览
-
-    setState(() {
-      _previewLoading = true;
-      _previewError = null;
-    });
+    if (!_isImage) return;
+    setState(() => _previewLoading = true);
 
     try {
       final tempDir = Directory.systemTemp;
@@ -99,7 +93,6 @@ class _EditDialogState extends State<EditDialog> {
         await previewDir.create(recursive: true);
       }
 
-      // 用当前参数构建临时 task（限制预览图尺寸避免大文件）
       final previewTask = _buildCurrentTask().copyWith(
         width: _buildCurrentTask().width != null && _buildCurrentTask().width! > 1080
             ? 1080
@@ -114,11 +107,7 @@ class _EditDialogState extends State<EditDialog> {
         'preview_${DateTime.now().millisecondsSinceEpoch}.${_outputFormat}',
       );
 
-      final command = CommandBuilder.build(
-        task: previewTask,
-        outputPath: previewPath,
-      );
-
+      final command = CommandBuilder.build(task: previewTask, outputPath: previewPath);
       final session = await FFmpegKit.execute(command);
       final code = await session.getReturnCode();
 
@@ -128,18 +117,10 @@ class _EditDialogState extends State<EditDialog> {
           _previewLoading = false;
         });
       } else {
-        final logs = await session.getAllLogsAsString() ?? '';
-        setState(() {
-          _previewError = '预览失败';
-          _previewLoading = false;
-        });
-        debugPrint('预览失败: ${logs.length > 200 ? logs.substring(logs.length - 200) : logs}');
+        setState(() => _previewLoading = false);
       }
     } catch (e) {
-      setState(() {
-        _previewError = '预览异常';
-        _previewLoading = false;
-      });
+      setState(() => _previewLoading = false);
     }
   }
 
@@ -160,107 +141,100 @@ class _EditDialogState extends State<EditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final formats = _isImage ? _imageFormats : _videoFormats;
+    // 全屏弹窗，状态栏透明
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: CupertinoColors.transparent,
+      ),
+      child: CupertinoPageScaffold(
+        backgroundColor: CupertinoColors.systemBackground,
+        navigationBar: CupertinoNavigationBar(
+          backgroundColor: CupertinoColors.systemBackground.withValues(alpha: 0.9),
+          middle: const Text('编辑参数'),
+          leading: CupertinoButton(
+            padding: EdgeInsets.zero,
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          trailing: CupertinoButton.filled(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: const Text('确认', style: TextStyle(fontSize: 14)),
+            onPressed: _onConfirm,
+          ),
+        ),
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 32),
+            children: [
+              // 1. 顶部预览对比（大尺寸）
+              if (_isImage) _buildPreviewSection(),
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          color: CupertinoColors.systemBackground.withValues(alpha: 0.95),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 顶部：实时预览区（仅图片）
-                if (_isImage) _buildPreviewArea(),
+              // 2. 格式选择
+              _buildFormatSection(),
 
-                // 格式选择
-                _buildFormatSelector(formats),
-
-                // 动态参数区
-                if (_isImage) _buildDynamicImageParams(),
-                if (!_isImage) _buildVideoParams(),
-
-                // 底部按钮
-                _buildFooter(),
-              ],
-            ),
+              // 3. 动态参数
+              if (_isImage) _buildDynamicImageParams(),
+              if (!_isImage) _buildVideoParams(),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /// 实时预览区（左右对比）
-  Widget _buildPreviewArea() {
+  /// 顶部预览区（大尺寸，左右对比）
+  Widget _buildPreviewSection() {
     return Container(
-      height: 200,
+      height: 320,
+      margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: CupertinoColors.systemGrey6,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(14),
-          topRight: Radius.circular(14),
-        ),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Stack(
-        children: [
-          // 预览内容
-          if (_previewLoading)
-            const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CupertinoActivityIndicator(radius: 16),
-                  SizedBox(height: 8),
-                  Text('生成预览中...', style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-                ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            if (_previewLoading)
+              const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CupertinoActivityIndicator(radius: 20),
+                    SizedBox(height: 12),
+                    Text('生成预览中...', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                  ],
+                ),
+              )
+            else if (_previewPath != null)
+              _buildCompareView()
+            else
+              const Center(
+                child: Text('预览不可用', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
               ),
-            )
-          else if (_previewError != null)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(CupertinoIcons.exclamationmark_circle, size: 32, color: CupertinoColors.systemGrey),
-                  const SizedBox(height: 8),
-                  Text(_previewError!, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-                ],
-              ),
-            )
-          else if (_previewPath != null)
-            _buildCompareView()
-          else
-            const Center(
-              child: Text('预览不可用', style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-            ),
 
-          // 右上角刷新按钮
-          Positioned(
-            top: 8,
-            right: 8,
-            child: CupertinoButton(
-              padding: const EdgeInsets.all(6),
-              color: CupertinoColors.systemBackground.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(16),
-              minSize: 32,
-              onPressed: _previewLoading ? null : _generatePreview,
-              child: const Icon(
-                CupertinoIcons.arrow_clockwise,
-                size: 16,
-                color: Color(0xFF007AFF),
+            // 刷新按钮
+            Positioned(
+              top: 12,
+              right: 12,
+              child: CupertinoButton(
+                padding: const EdgeInsets.all(8),
+                color: CupertinoColors.systemBackground.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(20),
+                minSize: 36,
+                onPressed: _previewLoading ? null : _generatePreview,
+                child: const Icon(CupertinoIcons.arrow_clockwise, size: 18, color: Color(0xFF007AFF)),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   /// 左右对比视图
-  /// 原图和输出图都固定在中央（BoxFit.contain + center），
-  /// 用 ClipRect 裁剪原图左半部分（分隔线左侧显示原图，右侧显示输出图）
+  /// 原图和输出图都使用 BoxFit.contain + center 对齐
+  /// 原图在上层，用 ClipRect 只显示分隔线左侧
   Widget _buildCompareView() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -276,7 +250,7 @@ class _EditDialogState extends State<EditDialog> {
           },
           child: Stack(
             children: [
-              // 底层：输出图（满铺固定，contain + center）
+              // 底层：输出图（满铺 contain + center）
               Positioned.fill(
                 child: Image.file(
                   File(_previewPath!),
@@ -287,16 +261,19 @@ class _EditDialogState extends State<EditDialog> {
                   ),
                 ),
               ),
-              // 上层：原图（同样满铺固定 contain + center），但用 ClipRect 裁剪只显示分隔线左侧
+              // 上层：原图（同样满铺 contain + center），用 ClipRect 裁剪只显示分隔线左侧
               Positioned(
                 left: 0,
                 top: 0,
                 width: splitX,
                 height: height,
                 child: ClipRect(
-                  child: Align(
+                  child: OverflowBox(
+                    minWidth: width,
+                    maxWidth: width,
+                    minHeight: height,
+                    maxHeight: height,
                     alignment: Alignment.centerLeft,
-                    widthFactor: splitX / width,
                     child: SizedBox(
                       width: width,
                       height: height,
@@ -321,36 +298,36 @@ class _EditDialogState extends State<EditDialog> {
               ),
               // 拖动手柄
               Positioned(
-                left: splitX - 16,
+                left: splitX - 18,
                 top: 0,
                 bottom: 0,
                 child: Center(
                   child: Container(
-                    width: 32,
-                    height: 32,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: const Color(0xFF007AFF),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
                           color: const Color(0xFF007AFF).withValues(alpha: 0.3),
-                          blurRadius: 6,
+                          blurRadius: 8,
                         ),
                       ],
                     ),
-                    child: const Icon(CupertinoIcons.arrow_swap, color: CupertinoColors.white, size: 16),
+                    child: const Icon(CupertinoIcons.arrow_swap, color: CupertinoColors.white, size: 18),
                   ),
                 ),
               ),
               // 标签
               Positioned(
-                top: 8,
-                left: 8,
+                top: 12,
+                left: 12,
                 child: _floatingLabel('原图'),
               ),
               Positioned(
-                top: 8,
-                right: 50,
+                top: 12,
+                right: 60,
                 child: _floatingLabel(_outputFormat.toUpperCase()),
               ),
             ],
@@ -362,32 +339,31 @@ class _EditDialogState extends State<EditDialog> {
 
   Widget _floatingLabel(String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: CupertinoColors.systemBackground.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(10),
+        color: CupertinoColors.systemBackground.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF007AFF).withValues(alpha: 0.3), width: 1),
       ),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF007AFF)),
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF007AFF)),
       ),
     );
   }
 
-  Widget _buildFormatSelector(Map<String, String> formats) {
+  Widget _buildFormatSection() {
+    final formats = _isImage ? _imageFormats : _videoFormats;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '输出格式',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey),
-          ),
-          const SizedBox(height: 8),
+          const Text('输出格式', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 10,
+            runSpacing: 10,
             children: formats.entries.map((entry) {
               final selected = _outputFormat == entry.key;
               return GestureDetector(
@@ -396,15 +372,16 @@ class _EditDialogState extends State<EditDialog> {
                   _generatePreview();
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
                     color: selected ? const Color(0xFF007AFF) : CupertinoColors.systemGrey5,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
+                    border: selected ? null : Border.all(color: CupertinoColors.separator, width: 0.5),
                   ),
                   child: Text(
                     entry.value,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: selected ? CupertinoColors.white : CupertinoColors.systemGrey,
                     ),
@@ -439,39 +416,49 @@ class _EditDialogState extends State<EditDialog> {
     );
   }
 
-  Widget _buildSvgScaleSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+  Widget _buildSection({required String title, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: CupertinoColors.separator.withValues(alpha: 0.3), width: 0.5),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSvgScaleSection() {
+    return _buildSection(
+      title: '缩放倍数',
+      child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('缩放倍数', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-              Text('${_svgScale.toStringAsFixed(1)}x', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
+              const Text('倍数', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              Text('${_svgScale.toStringAsFixed(1)}x', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
             ],
           ),
-          CupertinoSlider(
-            value: _svgScale,
-            min: 0.5,
-            max: 4.0,
-            divisions: 7,
-            onChanged: (v) => setState(() => _svgScale = v),
-          ),
+          CupertinoSlider(value: _svgScale, min: 0.5, max: 4.0, divisions: 7, onChanged: (v) => setState(() => _svgScale = v)),
         ],
       ),
     );
   }
 
   Widget _buildResolutionSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+    return _buildSection(
+      title: '分辨率',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('分辨率（宽×高，留空=原始）', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -493,7 +480,7 @@ class _EditDialogState extends State<EditDialog> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Row(
             children: [
               _quickSizeChip('720p', 1280, 720),
@@ -509,32 +496,25 @@ class _EditDialogState extends State<EditDialog> {
   }
 
   Widget _buildQualitySection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+    return _buildSection(
+      title: '图片质量',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('图片质量', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-              Text(_quality.toInt().toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
+              const Text('质量', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              Text(_quality.toInt().toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
             ],
-         ),
-          CupertinoSlider(
-            value: _quality,
-            min: 1,
-            max: 100,
-            divisions: 99,
-            onChanged: (v) => setState(() => _quality = v),
           ),
+          CupertinoSlider(value: _quality, min: 1, max: 100, divisions: 99, onChanged: (v) => setState(() => _quality = v)),
           FutureBuilder<int>(
             future: _estimateOutputSize(),
             builder: (context, snapshot) {
               if (snapshot.hasData && snapshot.data! > 0) {
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text('预估输出: ${_formatSize(snapshot.data!)}', style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey2)),
+                  child: Text('预估输出: ${_formatSize(snapshot.data!)}', style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey2)),
                 );
               }
               return const SizedBox.shrink();
@@ -546,32 +526,31 @@ class _EditDialogState extends State<EditDialog> {
   }
 
   Widget _buildAnimationSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+    return _buildSection(
+      title: '动图参数',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('帧率 (FPS)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-              Text(_fps.toInt().toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
+              const Text('帧率 (FPS)', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              Text(_fps.toInt().toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
             ],
           ),
           CupertinoSlider(value: _fps, min: 1, max: 30, divisions: 29, onChanged: (v) => setState(() => _fps = v)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('循环次数 (0=无限)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-              Text(_loopCount.toInt() == 0 ? '∞' : _loopCount.toInt().toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
+              const Text('循环 (0=无限)', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              Text(_loopCount.toInt() == 0 ? '∞' : _loopCount.toInt().toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
             ],
           ),
           CupertinoSlider(value: _loopCount, min: 0, max: 10, divisions: 10, onChanged: (v) => setState(() => _loopCount = v)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('调色板颜色数', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-              Text(_paletteColors.toInt().toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
+              const Text('调色板颜色数', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              Text(_paletteColors.toInt().toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
             ],
           ),
           CupertinoSlider(value: _paletteColors, min: 2, max: 256, divisions: 254, onChanged: (v) => setState(() => _paletteColors = v)),
@@ -581,15 +560,14 @@ class _EditDialogState extends State<EditDialog> {
   }
 
   Widget _buildTransparencySection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+    return _buildSection(
+      title: '透明度',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('保留透明背景', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
+              const Text('保留透明背景', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
               CupertinoSwitch(
                 value: _keepTransparency,
                 onChanged: (v) {
@@ -601,7 +579,7 @@ class _EditDialogState extends State<EditDialog> {
           ),
           if (!_keepTransparency) ...[
             const SizedBox(height: 12),
-            const Text('背景填充色', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
+            const Text('背景填充色', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 12,
@@ -614,8 +592,8 @@ class _EditDialogState extends State<EditDialog> {
                     _generatePreview();
                   },
                   child: Container(
-                    width: 36,
-                    height: 36,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: Color(color),
                       shape: BoxShape.circle,
@@ -635,87 +613,29 @@ class _EditDialogState extends State<EditDialog> {
   }
 
   Widget _buildVideoParams() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+    return _buildSection(
+      title: '视频参数',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('分辨率（宽×高，留空=原始）', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: CupertinoTextField(
-                  controller: _widthCtrl,
-                  placeholder: '宽',
-                  keyboardType: TextInputType.number,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-              ),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('×')),
-              Expanded(
-                child: CupertinoTextField(
-                  controller: _heightCtrl,
-                  placeholder: '高',
-                  keyboardType: TextInputType.number,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('视频画质', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-              Text(_quality.toInt().toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
+              const Text('画质', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              Text(_quality.toInt().toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
             ],
           ),
           CupertinoSlider(value: _quality, min: 1, max: 100, divisions: 99, onChanged: (v) => setState(() => _quality = v)),
-          // GIF 视频参数
           if (_outputFormat == 'gif') ...[
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('帧率 (FPS)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-                Text(_fps.toInt().toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
+                const Text('帧率 (FPS)', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                Text(_fps.toInt().toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
               ],
             ),
             CupertinoSlider(value: _fps, min: 1, max: 30, divisions: 29, onChanged: (v) => setState(() => _fps = v)),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('循环 (0=无限)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
-                Text(_loopCount.toInt() == 0 ? '∞' : _loopCount.toInt().toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF007AFF))),
-              ],
-            ),
-            CupertinoSlider(value: _loopCount, min: 0, max: 10, divisions: 10, onChanged: (v) => setState(() => _loopCount = v)),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: CupertinoColors.separator, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: CupertinoButton(
-              child: const Text('取消'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-          Container(width: 0.5, height: 44, color: CupertinoColors.separator),
-          Expanded(
-            child: CupertinoButton.filled(
-              child: const Text('确认'),
-              onPressed: _onConfirm,
-            ),
-          ),
         ],
       ),
     );
@@ -731,7 +651,7 @@ class _EditDialogState extends State<EditDialog> {
         _generatePreview();
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: CupertinoColors.systemGrey5,
           borderRadius: BorderRadius.circular(12),
@@ -752,7 +672,6 @@ class _EditDialogState extends State<EditDialog> {
         case 'webp': formatMultiplier = 0.25; break;
         case 'heic': case 'heif': formatMultiplier = 0.15; break;
         case 'png': formatMultiplier = 0.7; break;
-        case 'gif': formatMultiplier = 0.5; break;
         case 'bmp': case 'ico': formatMultiplier = 1.5; break;
         default: formatMultiplier = 0.5;
       }
