@@ -207,7 +207,7 @@ class _EditDialogState extends State<EditDialog> {
                 ),
               )
             else if (_previewPath != null)
-              _buildCompareView()
+              _buildSimplePreview()
             else
               const Center(
                 child: Text('预览不可用', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
@@ -232,108 +232,17 @@ class _EditDialogState extends State<EditDialog> {
     );
   }
 
-  /// 左右对比视图
-  /// 原图和输出图都使用 BoxFit.contain + center 对齐
-  /// 原图在上层，用 ClipRect 只显示分隔线左侧
-  Widget _buildCompareView() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        final splitX = width * _splitRatio;
-
-        return GestureDetector(
-          onHorizontalDragUpdate: (details) {
-            setState(() {
-              _splitRatio = (details.localPosition.dx / width).clamp(0.05, 0.95);
-            });
-          },
-          child: Stack(
-            children: [
-              // 底层：输出图（满铺 contain + center）
-              Positioned.fill(
-                child: Image.file(
-                  File(_previewPath!),
-                  fit: BoxFit.contain,
-                  alignment: Alignment.center,
-                  errorBuilder: (_, __, ___) => const Center(
-                    child: Text('输出图加载失败', style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-                  ),
-                ),
-              ),
-              // 上层：原图（同样满铺 contain + center），用 ClipRect 裁剪只显示分隔线左侧
-              Positioned(
-                left: 0,
-                top: 0,
-                width: splitX,
-                height: height,
-                child: ClipRect(
-                  child: OverflowBox(
-                    minWidth: width,
-                    maxWidth: width,
-                    minHeight: height,
-                    maxHeight: height,
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: width,
-                      height: height,
-                      child: Image.file(
-                        File(widget.task.inputPath),
-                        fit: BoxFit.contain,
-                        alignment: Alignment.center,
-                        errorBuilder: (_, __, ___) => const Center(
-                          child: Text('原图加载失败', style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // 分隔线
-              Positioned(
-                left: splitX - 1.5,
-                top: 0,
-                bottom: 0,
-                child: Container(width: 3, color: const Color(0xFF007AFF)),
-              ),
-              // 拖动手柄
-              Positioned(
-                left: splitX - 18,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF007AFF),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF007AFF).withValues(alpha: 0.3),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(CupertinoIcons.arrow_swap, color: CupertinoColors.white, size: 18),
-                  ),
-                ),
-              ),
-              // 标签
-              Positioned(
-                top: 12,
-                left: 12,
-                child: _floatingLabel('原图'),
-              ),
-              Positioned(
-                top: 12,
-                right: 60,
-                child: _floatingLabel(_outputFormat.toUpperCase()),
-              ),
-            ],
-          ),
-        );
-      },
+  /// 简单预览（直接显示转换后的图片，不对比原图）
+  Widget _buildSimplePreview() {
+    return Positioned.fill(
+      child: Image.file(
+        File(_previewPath!),
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
+        errorBuilder: (_, __, ___) => const Center(
+          child: Text('预览图加载失败', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+        ),
+      ),
     );
   }
 
