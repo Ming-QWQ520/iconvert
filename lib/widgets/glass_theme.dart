@@ -1,13 +1,15 @@
 /// GlassThemeProvider - 液态玻璃全局状态管理
 ///
 /// 背景图始终显示（不管液态玻璃开关）
-/// 液态玻璃用 BackdropFilter 实现（兼容所有设备，不依赖 Impeller）
+/// 液态玻璃开启时用 LiquidGlassView + LiquidGlassLens（3.2.2 修复了 Skia 兼容性）
+/// 液态玻璃关闭时用 BackdropFilter（简单模糊）
 library;
 
 import 'dart:io' as io;
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import 'package:iconvert/services/storage_service.dart';
 import 'package:iconvert/services/background_service.dart';
 
@@ -43,11 +45,39 @@ class GlassProvider extends ChangeNotifier {
   }
 }
 
-/// 全局背景容器
+/// 构建背景图 Widget（共用）
+Widget buildBackgroundWidget(String path) {
+  if (BackgroundService.isAsset(path)) {
+    return Image.asset(
+      path,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      gaplessPlayback: true,
+    );
+  }
+  return Image.file(
+    io.File(path),
+    fit: BoxFit.cover,
+    width: double.infinity,
+    height: double.infinity,
+    gaplessPlayback: true,
+    errorBuilder: (_, __, ___) => Image.asset(
+      BackgroundService.defaultBackground,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    ),
+  );
+}
+
+/// 全局背景 + 液态玻璃容器
 ///
 /// 用 Stack 布局：
-/// - 底层：背景图（始终显示，全屏覆盖）
-/// - 上层：用户 UI（scaffold 背景设为透明，让背景图透出来）
+/// - 底层：背景图（始终显示）
+/// - 上层：UI
+///   - 液态玻璃开启：LiquidGlassView 包裹（Lens 会折射背景）
+///   - 液态玻璃关闭：直接显示 UI
 class GlassBackground extends StatelessWidget {
   final Widget child;
 
@@ -57,51 +87,32 @@ class GlassBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final glass = context.watch<GlassProvider>();
 
+    if (glass.enabled) {
+      // 液态玻璃开启：用 LiquidGlassView（3.2.2 兼容 Skia）
+      return LiquidGlassView(
+        backgroundWidget: buildBackgroundWidget(glass.backgroundPath),
+        pixelRatio: 0.5,
+        realTimeCapture: true,
+        useSync: true,
+        child: child,
+      );
+    }
+
+    // 液态玻璃关闭：Stack 底层背景 + 上层 UI
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 底层：背景图（始终全屏显示）
-        _buildBackground(glass.backgroundPath),
-
-        // 上层：UI 内容（背景透明，让背景图透出来）
+        buildBackgroundWidget(glass.backgroundPath),
         child,
       ],
-    );
-  }
-
-  Widget _buildBackground(String path) {
-    if (BackgroundService.isAsset(path)) {
-      return Image.asset(
-        path,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        gaplessPlayback: true,
-      );
-    }
-    return Image.file(
-      io.File(path),
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      gaplessPlayback: true,
-      errorBuilder: (_, __, ___) => Image.asset(
-        BackgroundService.defaultBackground,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      ),
     );
   }
 }
 
 /// 液态玻璃卡片
 ///
-/// 用 BackdropFilter 实现真正的玻璃效果：
-/// - 模糊背景（sigma 根据开关调整）
-/// - 半透明着色
-/// - 高光边框
-/// - iOS 控制中心风格的连续圆角
+/// 液态玻璃开启：LiquidGlassLens（iOS 控制中心风格折射）
+/// 液态玻璃关闭：BackdropFilter（简单模糊玻璃）
 class GlassCard extends StatelessWidget {
   final Widget child;
   final double cornerRadius;
@@ -120,48 +131,59 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final glass = context.watch<GlassProvider>();
 
-    // 液态玻璃开启：强模糊 + 高折射感
-    // 液态玻璃关闭：弱模糊 + 半透明
-    final sigma = glass.enabled ? 20.0 : 8.0;
-    final bgColor = glass.enabled
-        ? const Color(0x33FFFFFF)     // 开启：更白的玻璃
-        : CupertinoColors.systemBackground.withValues(alpha: 0.6);
-    final borderColor = glass.enabled
-        ? const Color(0x55FFFFFF)     // 开启：更亮的高光边框
-        : CupertinoColors.white.withValues(alpha: 0.15);
+    if (glass.enabled) {
+      // 液态玻璃开启：LiquidGlassLens
+      return Container(
+        margin: margin,
+        child: LiquidGlassLens(
+          style: LiquidGlassStyle(
+            shape: LiquidGlassShape.continuousRoundedRectangle(
+              cornerRadius: cornerRadius,
+              borderWidth: 1.5,
+              lightIntensity: 1.1,
+              lightDirection: 39,
+              borderType: OpticalBorder(
+                borderSaturation: 0.8,
+                ambientIntensity: 5.0,
+                borderSolidity: 0.35,
+              ),
+            ),
+            appearance: const LiquidGlassAppearance(
+              color: Color(0x22FFFFFF),
+              saturation: 1.15,
+              blur: LiquidGlassBlur(sigmaX: 8, sigmaY: 8),
+            ),
+            refraction: LiquidGlassRefraction(
+              refractionType: OpticalRefraction(
+                refraction: 1.5,
+                refractionWidth: 24,
+                depth: 0.7,
+              ),
+            ),
+          ),
+          child: padding != null
+              ? Padding(padding: padding!, child: child)
+              : child,
+        ),
+      );
+    }
 
+    // 液态玻璃关闭：BackdropFilter 模糊
     return Container(
       margin: margin,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(cornerRadius),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
-              color: bgColor,
+              color: CupertinoColors.systemBackground.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(cornerRadius),
-              border: Border.all(color: borderColor, width: 0.5),
-              // iOS 控制中心风格的内阴影效果
-              gradient: glass.enabled
-                  ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0x44FFFFFF),
-                        const Color(0x11FFFFFF),
-                      ],
-                    )
-                  : null,
-              boxShadow: glass.enabled
-                  ? [
-                      BoxShadow(
-                        color: const Color(0x22000000),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
+              border: Border.all(
+                color: CupertinoColors.white.withValues(alpha: 0.2),
+                width: 0.5,
+              ),
             ),
             child: child,
           ),
