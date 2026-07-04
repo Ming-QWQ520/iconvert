@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:iconvert/models/conversion_task.dart';
 
 class VideoPreviewDialog extends StatefulWidget {
@@ -55,10 +56,15 @@ class _VideoPreviewDialogState extends State<VideoPreviewDialog> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _errorMsg = '无法播放视频: $e';
+          _errorMsg = '无法内嵌播放此格式（WebM 等），\n可以用系统播放器打开';
         });
       }
     }
+  }
+
+  /// 用系统播放器打开
+  Future<void> _openWithSystemPlayer() async {
+    await OpenFilex.open(widget.task.outputPath!);
   }
 
   @override
@@ -132,12 +138,17 @@ class _VideoPreviewDialogState extends State<VideoPreviewDialog> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(CupertinoIcons.exclamationmark_triangle, size: 48, color: CupertinoColors.destructiveRed),
+              const Icon(CupertinoIcons.exclamationmark_triangle, size: 48, color: CupertinoColors.systemGrey),
               const SizedBox(height: 16),
               Text(
                 _errorMsg!,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 14, color: CupertinoColors.systemGrey),
+              ),
+              const SizedBox(height: 20),
+              CupertinoButton.filled(
+                child: const Text('用系统播放器打开'),
+                onPressed: _openWithSystemPlayer,
               ),
             ],
           ),
