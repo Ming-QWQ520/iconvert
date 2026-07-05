@@ -1,5 +1,11 @@
 # iConvert ProGuard Rules
 
+# 缺失类（Play Core 不在依赖中但 Flutter 引擎引用了）
+-dontwarn com.google.android.play.core.**
+-dontwarn com.google.android.play.core.splitcompat.**
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
+
 # Flutter
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
