@@ -25,6 +25,7 @@ import 'package:iconvert/dialogs/permission_dialog.dart';
 import 'package:iconvert/dialogs/path_setting_dialog.dart';
 import 'package:iconvert/dialogs/remove_from_queue_dialog.dart';
 import 'package:iconvert/dialogs/batch_convert_dialog.dart';
+import 'package:iconvert/widgets/onboarding_tutorial.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -36,6 +37,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final Map<String, String> _thumbnailPaths = {};
   bool _wizardChecked = false;
+  bool _showOnboarding = false;
   // 多选模式
   bool _selectionMode = false;
   final Set<String> _selectedTaskIds = {};
@@ -48,10 +50,19 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkFirstRunWizard();
+      _checkOnboarding();
       _conversionModel = context.read<ConversionModel>();
       _conversionModel.addListener(_onTasksChanged);
       _generateMissingThumbnails();
     });
+  }
+
+  /// 检查是否需要显示新手教程
+  Future<void> _checkOnboarding() async {
+    final shouldShow = await OnboardingTutorial.shouldShow();
+    if (shouldShow && mounted) {
+      setState(() => _showOnboarding = true);
+    }
   }
 
   @override
@@ -273,6 +284,13 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // 新手教程覆盖层
+    if (_showOnboarding) {
+      return OnboardingTutorial(
+        onComplete: () => setState(() => _showOnboarding = false),
+      );
+    }
+
     return WithForegroundTask(
       child: CupertinoPageScaffold(
         backgroundColor: const Color(0x00000000),
