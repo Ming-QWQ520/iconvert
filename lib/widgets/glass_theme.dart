@@ -69,8 +69,8 @@ class GlassBackground extends StatelessWidget {
     if (glass.enabled) {
       return LiquidGlassView(
         backgroundWidget: buildBackgroundWidget(glass.backgroundPath),
-        pixelRatio: 0.5,
-        realTimeCapture: true,
+        pixelRatio: 0.3,
+        realTimeCapture: false,
         useSync: true,
         child: child,
       );
@@ -131,7 +131,7 @@ class GlassCard extends StatelessWidget {
             lightDirection: 39,
             borderType: OpticalBorder(borderSaturation: 0.8, ambientIntensity: 5.0, borderSolidity: 0.35),
           ),
-          appearance: const LiquidGlassAppearance(color: Color(0x22FFFFFF), saturation: 1.15, blur: LiquidGlassBlur(sigmaX: 8, sigmaY: 8)),
+          appearance: const LiquidGlassAppearance(color: Color(0x22FFFFFF), saturation: 1.1, blur: LiquidGlassBlur(sigmaX: 4, sigmaY: 4)),
           refraction: LiquidGlassRefraction(refractionType: OpticalRefraction(refraction: 1.5, refractionWidth: 24, depth: 0.7)),
         ),
         child: padding != null ? Padding(padding: padding!, child: child) : child,
@@ -159,7 +159,7 @@ class GlassPopup extends StatelessWidget {
       child: LiquidGlassLens(
         style: LiquidGlassStyle(
           shape: LiquidGlassShape.continuousRoundedRectangle(cornerRadius: cornerRadius, borderWidth: 1.5),
-          appearance: const LiquidGlassAppearance(color: Color(0x33FFFFFF), saturation: 1.2, blur: LiquidGlassBlur(sigmaX: 10, sigmaY: 10)),
+          appearance: const LiquidGlassAppearance(color: Color(0x33FFFFFF), saturation: 1.1, blur: LiquidGlassBlur(sigmaX: 5, sigmaY: 5)),
           refraction: LiquidGlassRefraction(refractionType: OpticalRefraction(refraction: 1.5, refractionWidth: 24, depth: 0.7)),
         ),
         child: child,
