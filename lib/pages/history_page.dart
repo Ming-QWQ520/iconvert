@@ -318,8 +318,12 @@ class _HistoryCard extends StatelessWidget {
       );
     }
 
-    return Dismissible(
-      key: ValueKey(task.id),
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      behavior: HitTestBehavior.opaque,
+      child: Dismissible(
+        key: ValueKey(task.id),
       background: _buildSwipeBackground(
         const Color(0xFF007AFF), CupertinoIcons.arrow_clockwise, '重新转换', Alignment.centerLeft,
       ),
@@ -343,26 +347,22 @@ class _HistoryCard extends StatelessWidget {
           return false;
         }
       },
-      child: GestureDetector(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        behavior: HitTestBehavior.translucent,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: CupertinoColors.systemBackground.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              _buildThumbnail(),
-              const SizedBox(width: 12),
-              Expanded(child: _buildInfo()),
-              _buildStatusIcon(),
-            ],
-          ),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: CupertinoColors.systemBackground.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(12),
         ),
+        child: Row(
+          children: [
+            _buildThumbnail(),
+            const SizedBox(width: 12),
+            Expanded(child: _buildInfo()),
+            _buildStatusIcon(),
+          ],
+        ),
+      ),
       ),
     );
   }
