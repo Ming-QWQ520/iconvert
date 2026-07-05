@@ -10,7 +10,7 @@ library;
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:iconvert/models/history_model.dart';
 import 'package:iconvert/models/conversion_model.dart';
 import 'package:iconvert/models/conversion_task.dart';
@@ -262,7 +262,11 @@ class _HistoryPageState extends State<HistoryPage> {
       );
       return;
     }
-    await OpenFilex.open(task.outputPath!);
+    // 用 share_plus 调起系统分享/打开方式选择器
+    await Share.shareXFiles(
+      [XFile(task.outputPath!)],
+      text: task.originalName,
+    );
   }
 }
 
