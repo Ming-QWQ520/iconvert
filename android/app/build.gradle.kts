@@ -42,14 +42,15 @@ android {
 
     buildTypes {
         release {
-            // 使用正式签名（如果 key.properties 存在），否则回退 debug 签名
+            // 使用正式签名
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // 启用 R8 混淆 + 资源压缩
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
