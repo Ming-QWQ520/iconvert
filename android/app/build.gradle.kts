@@ -1,22 +1,40 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// 读取签名配置
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.iconvert.iconvert"
-    // 提升到 36：file_picker / flutter_plugin_android_lifecycle / shared_preferences_android 要求
-    compileSdk = 36
+    compileSdk = 35
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // 签名配置
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+            storeFile = keystoreProperties["storeFile"]?.let { file(it as String) }
+            storePassword = keystoreProperties["storePassword"] as String?
+        }
+    }
+
     defaultConfig {
         applicationId = "com.iconvert.iconvert"
-        // iConvert 项目要求：Android 5.0+ 起步
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = 33
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -24,8 +42,12 @@ android {
 
     buildTypes {
         release {
-            // 侧载分发用 debug 签名
-            signingConfig = signingConfigs.getByName("debug")
+            // 使用正式签名（如果 key.properties 存在），否则回退 debug 签名
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(
@@ -35,7 +57,7 @@ android {
         }
     }
 
-    // 彻底禁用 lint（避免 lint 中间产物占用磁盘）
+    // 彻底禁用 lint
     lint {
         abortOnError = false
         checkReleaseBuilds = false
