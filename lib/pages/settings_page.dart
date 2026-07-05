@@ -5,9 +5,11 @@
 /// 开发者行增加头像图标（Ming256x256.png）
 library;
 
+import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:iconvert/services/storage_service.dart';
@@ -28,11 +30,37 @@ class _SettingsPageState extends State<SettingsPage> {
   FilePickerType _pickerType = FilePickerType.gallery;
   bool _mtManagerInstalled = false;
   bool _liquidGlass = false;
+  int _starCount = 0;
+  bool _starLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _fetchStarCount();
+  }
+
+  /// 从 GitHub API 获取仓库 Star 数
+  Future<void> _fetchStarCount() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.github.com/repos/Ming-QWQ520/iconvert'),
+        headers: {'Accept': 'application/vnd.github+json'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (mounted) {
+          setState(() {
+            _starCount = data['stargazers_count'] as int? ?? 0;
+            _starLoading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _starLoading = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _starLoading = false);
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -411,7 +439,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   CupertinoListTile.notched(
                     title: const Text('GitHub 仓库'),
-                    additionalInfo: const Text('iConvert'),
+                    additionalInfo: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.star_fill, size: 14, color: Color(0xFFFF9500)),
+                        const SizedBox(width: 4),
+                        Text(_starLoading ? '...' : _starCount.toString()),
+                        const SizedBox(width: 6),
+                        const Text('iConvert'),
+                      ],
+                    ),
                     trailing: const CupertinoListTileChevron(),
                     onTap: _showGithubConfirm,
                   ),
