@@ -14,20 +14,33 @@ import 'package:iconvert/services/background_service.dart';
 
 class GlassProvider extends ChangeNotifier {
   bool _enabled = false;
+  double _blur = 0.4;  // 默认中等模糊强度
   String _backgroundPath = BackgroundService.defaultBackground;
 
   bool get enabled => _enabled;
+  double get blur => _blur;
   String get backgroundPath => _backgroundPath;
 
   Future<void> load() async {
     _enabled = await StorageService.isLiquidGlassEnabled();
+    _blur = await StorageService.getLiquidGlassBlur();
     _backgroundPath = await BackgroundService.getBackgroundPath();
     notifyListeners();
   }
 
   Future<void> setEnabled(bool value) async {
+    // 关键：去重检查，避免状态错乱（修复开关切换时按钮状态卡顿问题）
+    if (_enabled == value) return;
     _enabled = value;
     await StorageService.setLiquidGlassEnabled(value);
+    notifyListeners();
+  }
+
+  Future<void> setBlur(double value) async {
+    final clamped = value.clamp(0.0, 1.0);
+    if ((_blur - clamped).abs() < 0.001) return;
+    _blur = clamped;
+    await StorageService.setLiquidGlassBlur(clamped);
     notifyListeners();
   }
 
@@ -41,6 +54,19 @@ class GlassProvider extends ChangeNotifier {
     await BackgroundService.resetToDefault();
     _backgroundPath = BackgroundService.defaultBackground;
     notifyListeners();
+  }
+
+  /// 当前模糊强度对应的 sigma 值（2.0 - 14.0）
+  double get blurSigma {
+    // 0.0 -> 2.0, 1.0 -> 14.0
+    return 2.0 + _blur * 12.0;
+  }
+
+  /// 当前模糊强度对应的 pixelRatio（值越大越清晰）
+  /// 模糊越强 → pixelRatio 越小（背景采样更低分辨率 = 更模糊）
+  double get pixelRatio {
+    // 0.0 -> 1.0（最清晰）, 1.0 -> 0.2（最模糊）
+    return 1.0 - _blur * 0.8;
   }
 }
 
@@ -69,7 +95,7 @@ class GlassBackground extends StatelessWidget {
     if (glass.enabled) {
       return LiquidGlassView(
         backgroundWidget: buildBackgroundWidget(glass.backgroundPath),
-        pixelRatio: 0.3,
+        pixelRatio: glass.pixelRatio,
         realTimeCapture: false,
         useSync: true,
         child: child,
@@ -120,6 +146,8 @@ class GlassCard extends StatelessWidget {
 
     if (!glass.enabled) return child;
 
+    final sigma = glass.blurSigma;
+
     return Container(
       margin: margin,
       child: LiquidGlassLens(
@@ -131,7 +159,11 @@ class GlassCard extends StatelessWidget {
             lightDirection: 39,
             borderType: OpticalBorder(borderSaturation: 0.8, ambientIntensity: 5.0, borderSolidity: 0.35),
           ),
-          appearance: const LiquidGlassAppearance(color: Color(0x22FFFFFF), saturation: 1.1, blur: LiquidGlassBlur(sigmaX: 4, sigmaY: 4)),
+          appearance: LiquidGlassAppearance(
+            color: const Color(0x22FFFFFF),
+            saturation: 1.1,
+            blur: LiquidGlassBlur(sigmaX: sigma, sigmaY: sigma),
+          ),
           refraction: LiquidGlassRefraction(refractionType: OpticalRefraction(refraction: 1.5, refractionWidth: 24, depth: 0.7)),
         ),
         child: padding != null ? Padding(padding: padding!, child: child) : child,
@@ -154,12 +186,18 @@ class GlassPopup extends StatelessWidget {
 
     if (!glass.enabled) return child;
 
+    final sigma = glass.blurSigma + 1.0;  // 弹窗略强一点的模糊
+
     return Container(
       margin: const EdgeInsets.all(16),
       child: LiquidGlassLens(
         style: LiquidGlassStyle(
           shape: LiquidGlassShape.continuousRoundedRectangle(cornerRadius: cornerRadius, borderWidth: 1.5),
-          appearance: const LiquidGlassAppearance(color: Color(0x33FFFFFF), saturation: 1.1, blur: LiquidGlassBlur(sigmaX: 5, sigmaY: 5)),
+          appearance: LiquidGlassAppearance(
+            color: const Color(0x33FFFFFF),
+            saturation: 1.1,
+            blur: LiquidGlassBlur(sigmaX: sigma, sigmaY: sigma),
+          ),
           refraction: LiquidGlassRefraction(refractionType: OpticalRefraction(refraction: 1.5, refractionWidth: 24, depth: 0.7)),
         ),
         child: child,

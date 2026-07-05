@@ -15,6 +15,7 @@ class StorageService {
   static const _keyFirstRunDone = 'iconvert_first_run_done';
   static const _keyFilePickerType = 'iconvert_file_picker_type';
   static const _keyLiquidGlass = 'iconvert_liquid_glass';
+  static const _keyLiquidGlassBlur = 'iconvert_liquid_glass_blur';
   static const _defaultOutputDir = '/storage/emulated/0/Download/iConvert';
 
   static Future<String> getOutputDir() async {
@@ -56,6 +57,19 @@ class StorageService {
   static Future<void> setLiquidGlassEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyLiquidGlass, enabled);
+  }
+
+  /// 获取液态玻璃模糊强度（0.0 - 1.0）
+  /// 0.0 = 几乎无模糊（清晰），1.0 = 强模糊
+  static Future<double> getLiquidGlassBlur() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_keyLiquidGlassBlur) ?? 0.4;
+  }
+
+  /// 设置液态玻璃模糊强度
+  static Future<void> setLiquidGlassBlur(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyLiquidGlassBlur, value.clamp(0.0, 1.0));
   }
 
   static String get defaultOutputDir => _defaultOutputDir;

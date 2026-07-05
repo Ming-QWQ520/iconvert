@@ -29,7 +29,6 @@ class _SettingsPageState extends State<SettingsPage> {
   String _outputDir = StorageService.defaultOutputDir;
   FilePickerType _pickerType = FilePickerType.gallery;
   bool _mtManagerInstalled = false;
-  bool _liquidGlass = false;
   int _starCount = 0;
   bool _starLoading = true;
 
@@ -67,13 +66,11 @@ class _SettingsPageState extends State<SettingsPage> {
     final dir = await StorageService.getOutputDir();
     final pickerType = await StorageService.getFilePickerType();
     final mtInstalled = await FileService.isMTManagerInstalled();
-    final liquidGlass = await StorageService.isLiquidGlassEnabled();
     if (mounted) {
       setState(() {
         _outputDir = dir;
         _pickerType = pickerType;
         _mtManagerInstalled = mtInstalled;
-        _liquidGlass = liquidGlass;
       });
     }
   }
@@ -93,7 +90,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   /// 切换液态玻璃开关
+  /// 关键修复：直接通过 GlassProvider 修改状态，确保开关实时响应不再卡顿
   Future<void> _toggleLiquidGlass(bool value) async {
+    final glass = context.read<GlassProvider>();
     if (value) {
       // 开启前提示性能警告
       final confirmed = await showCupertinoDialog<bool>(
@@ -114,61 +113,33 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
       if (confirmed != true) return;
+    }
 
-      // 保存设置
-      await StorageService.setLiquidGlassEnabled(true);
-      setState(() => _liquidGlass = true);
+    // 关键：通过 GlassProvider 修改并自动 notifyListeners
+    await glass.setEnabled(value);
 
-      // 提示重启生效
-      if (mounted) {
-        await showCupertinoDialog<void>(
-          context: context,
-          builder: (ctx) => CupertinoAlertDialog(
-            title: const Text('重启生效'),
-            content: const Text('液态玻璃效果将在重启后生效，是否立即重启？'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('取消'),
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-              CupertinoDialogAction(
-                child: const Text('确定'),
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  // 重启 APP
-                  SystemNavigator.pop();
-                },
-              ),
-            ],
-          ),
-        );
-      }
-    } else {
-      // 关闭
-      await StorageService.setLiquidGlassEnabled(false);
-      setState(() => _liquidGlass = false);
-      if (mounted) {
-        await showCupertinoDialog<void>(
-          context: context,
-          builder: (ctx) => CupertinoAlertDialog(
-            title: const Text('重启生效'),
-            content: const Text('关闭液态玻璃效果将在重启后生效，是否立即重启？'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('取消'),
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-              CupertinoDialogAction(
-                child: const Text('确定'),
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  SystemNavigator.pop();
-                },
-              ),
-            ],
-          ),
-        );
-      }
+    // 提示重启生效
+    if (mounted) {
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('重启生效'),
+          content: Text(value ? '液态玻璃效果将在重启后生效，是否立即重启？' : '关闭液态玻璃效果将在重启后生效，是否立即重启？'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('取消'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                SystemNavigator.pop();
+              },
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -338,6 +309,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 关键：通过 watch 实时获取液态玻璃状态，确保开关切换时 UI 立即响应
+    final glass = context.watch<GlassProvider>();
+    final liquidGlass = glass.enabled;
+
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('设置'), backgroundColor: CupertinoColors.transparent, border: null),
       child: SafeArea(
@@ -345,7 +320,7 @@ class _SettingsPageState extends State<SettingsPage> {
           padding: const EdgeInsets.only(top: 24),
           children: [
             // 液态玻璃质感说明卡片
-            _buildGlassHeader(),
+            _buildGlassHeader(liquidGlass),
 
             const SizedBox(height: 24),
 
@@ -378,9 +353,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: const Text('全 UI 液态玻璃'),
                     subtitle: const Text('开启后所有界面使用液态玻璃效果',
                       style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-                    trailing: CupertinoSwitch(value: _liquidGlass, onChanged: _toggleLiquidGlass),
+                    trailing: CupertinoSwitch(value: liquidGlass, onChanged: _toggleLiquidGlass),
                   ),
-                  if (_liquidGlass) ...[
+                  if (liquidGlass) ...[
+                    // 模糊强度调节（新增）
+                    _buildBlurSlider(glass),
                     CupertinoListTile.notched(
                       title: const Text('背景图片'),
                       subtitle: const Text('选择液态玻璃背景图',
@@ -491,9 +468,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   /// 液态玻璃质感顶部说明卡片
-  Widget _buildGlassHeader() {
-    final titleColor = _liquidGlass ? CupertinoColors.white : const Color(0xFF007AFF);
-    final bodyColor = _liquidGlass ? const Color(0xCCFFFFFF) : CupertinoColors.systemGrey;
+  Widget _buildGlassHeader(bool liquidGlass) {
+    final titleColor = liquidGlass ? CupertinoColors.white : const Color(0xFF007AFF);
+    final bodyColor = liquidGlass ? const Color(0xCCFFFFFF) : CupertinoColors.systemGrey;
 
     final headerContent = Container(
       padding: const EdgeInsets.all(20),
@@ -523,7 +500,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     // 未开启：普通卡片（margin 在这里）
     // 开启：GlassCard（margin 在 GlassCard 里）
-    if (_liquidGlass) {
+    if (liquidGlass) {
       return GlassCard(
         margin: const EdgeInsets.symmetric(horizontal: 16),
         child: headerContent,
@@ -536,6 +513,39 @@ class _SettingsPageState extends State<SettingsPage> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: headerContent,
+    );
+  }
+
+  /// 模糊强度调节滑块（开启液态玻璃时显示）
+  Widget _buildBlurSlider(GlassProvider glass) {
+    String blurLabel(double v) {
+      if (v < 0.2) return '清晰';
+      if (v < 0.5) return '柔和';
+      if (v < 0.8) return '中等';
+      return '强烈';
+    }
+
+    return CupertinoListTile.notched(
+      title: Row(
+        children: [
+          const Expanded(child: Text('模糊强度')),
+          Text(
+            blurLabel(glass.blur),
+            style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+          ),
+        ],
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: CupertinoSlider(
+          value: glass.blur,
+          min: 0.0,
+          max: 1.0,
+          divisions: 20,
+          // 关键：直接绑定 provider，滑动时实时更新所有液态玻璃组件
+          onChanged: (v) => glass.setBlur(v),
+        ),
+      ),
     );
   }
 }

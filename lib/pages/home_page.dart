@@ -25,7 +25,6 @@ import 'package:iconvert/dialogs/permission_dialog.dart';
 import 'package:iconvert/dialogs/path_setting_dialog.dart';
 import 'package:iconvert/dialogs/remove_from_queue_dialog.dart';
 import 'package:iconvert/dialogs/batch_convert_dialog.dart';
-import 'package:iconvert/widgets/onboarding_tutorial.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -37,7 +36,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final Map<String, String> _thumbnailPaths = {};
   bool _wizardChecked = false;
-  bool _showOnboarding = false;
   // 多选模式
   bool _selectionMode = false;
   final Set<String> _selectedTaskIds = {};
@@ -50,19 +48,10 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkFirstRunWizard();
-      _checkOnboarding();
       _conversionModel = context.read<ConversionModel>();
       _conversionModel.addListener(_onTasksChanged);
       _generateMissingThumbnails();
     });
-  }
-
-  /// 检查是否需要显示新手教程
-  Future<void> _checkOnboarding() async {
-    final shouldShow = await OnboardingTutorial.shouldShow();
-    if (shouldShow && mounted) {
-      setState(() => _showOnboarding = true);
-    }
   }
 
   @override
@@ -284,13 +273,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // 新手教程覆盖层
-    if (_showOnboarding) {
-      return OnboardingTutorial(
-        onComplete: () => setState(() => _showOnboarding = false),
-      );
-    }
-
     return WithForegroundTask(
       child: CupertinoPageScaffold(
         backgroundColor: const Color(0x00000000),
@@ -698,11 +680,40 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _navigateToHistory() {
-    Navigator.of(context).push(CupertinoPageRoute<void>(builder: (_) => const HistoryPage()));
+    // 历史记录页：从左侧滑入（与左上角图标位置呼应）
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (context, animation, secondaryAnimation) => const HistoryPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // 从左侧滑入：起始 x=-1.0（屏幕左侧外），终点 x=0
+          final inTween = Tween<Offset>(
+            begin: const Offset(-1.0, 0.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeInOutCubicEmphasized));
+          // 当前页同时从 x=0 推到 x=1（向右退出）
+          final outTween = Tween<Offset>(
+            begin: Offset.zero,
+            end: const Offset(1.0, 0.0),
+          ).chain(CurveTween(curve: Curves.easeInOutCubicEmphasized));
+          return SlideTransition(
+            position: animation.drive(inTween),
+            child: SlideTransition(
+              position: animation.drive(outTween),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 380),
+        reverseTransitionDuration: const Duration(milliseconds: 320),
+      ),
+    );
   }
 
   void _navigateToSettings() {
-    Navigator.of(context).push(CupertinoPageRoute<void>(builder: (_) => const SettingsPage()));
+    // 设置页：默认从右侧滑入（Cupertino 标准行为，与右上角图标位置呼应）
+    Navigator.of(context).push(
+      CupertinoPageRoute<void>(builder: (_) => const SettingsPage()),
+    );
   }
 }
 
