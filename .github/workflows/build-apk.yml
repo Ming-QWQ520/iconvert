@@ -1,12 +1,10 @@
 name: Build APK
 
-# 触发条件：手动触发 + 推送 tag 时触发
-# 不在普通 push 时触发，避免每次推送都跑
 on:
-  workflow_dispatch:  # 手动触发（在 Actions 页面点 "Run workflow"）
+  workflow_dispatch:
   push:
     tags:
-      - 'v*'  # 推送 v1.0.0 这样的 tag 时触发
+      - 'v*'
 
 jobs:
   build:
@@ -35,6 +33,19 @@ jobs:
 
       - name: Verify install
         run: flutter doctor
+
+      - name: Create signing key
+        run: |
+          echo "${{ secrets.SIGNING_KEY }}" | base64 -d > android/app/iconvert-release.jks
+
+      - name: Create key.properties
+        run: |
+          cat > android/key.properties << 'EOF'
+          storePassword=${{ secrets.STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=iconvert-release.jks
+          EOF
 
       - name: Build APK (split per ABI)
         run: flutter build apk --split-per-abi --release
