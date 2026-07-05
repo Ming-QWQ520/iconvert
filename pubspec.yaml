@@ -27,6 +27,7 @@ dependencies:
   chewie: ^1.8.5
   liquid_glass_easy: ^3.2.2
   share_plus: ^10.0.0
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:
