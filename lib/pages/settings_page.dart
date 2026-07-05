@@ -415,6 +415,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     trailing: const CupertinoListTileChevron(),
                     onTap: _showGithubConfirm,
                   ),
+                  CupertinoListTile.notched(
+                    title: const Text('开源协议'),
+                    additionalInfo: const Text('AGPL-3.0'),
+                  ),
                 ],
               ),
             ),
@@ -451,12 +455,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 液态玻璃质感顶部说明卡片
   Widget _buildGlassHeader() {
-    // 液态玻璃开启时文字白色，未开启时正常颜色
     final titleColor = _liquidGlass ? CupertinoColors.white : const Color(0xFF007AFF);
     final bodyColor = _liquidGlass ? const Color(0xCCFFFFFF) : CupertinoColors.systemGrey;
 
-    return GlassCard(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+    final headerContent = Container(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,10 +467,8 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Icon(CupertinoIcons.cube_box, size: 22, color: titleColor),
               const SizedBox(width: 8),
-              Text(
-                'iConvert - 格式转换器',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: titleColor),
-              ),
+              Text('iConvert - 格式转换器',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: titleColor)),
             ],
           ),
           const SizedBox(height: 12),
@@ -482,6 +482,23 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
+    );
+
+    // 未开启：普通卡片（margin 在这里）
+    // 开启：GlassCard（margin 在 GlassCard 里）
+    if (_liquidGlass) {
+      return GlassCard(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        child: headerContent,
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBackground,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: headerContent,
     );
   }
 }
