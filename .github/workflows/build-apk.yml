@@ -10,6 +10,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -47,8 +49,8 @@ jobs:
           storeFile=iconvert-release.jks
           EOF
 
-      - name: Build APK (split per ABI)
-        run: flutter build apk --split-per-abi --release
+      - name: Build APK (split per ABI, obfuscated, R8)
+        run: flutter build apk --split-per-abi --release --obfuscate --split-debug-info=build/debug-info
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
@@ -57,11 +59,23 @@ jobs:
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 90
 
+      - name: Create Release and Upload APKs
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/app/outputs/flutter-apk/*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Show build info
         run: |
           echo "## APK 构建完成" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 构建产物" >> $GITHUB_STEP_SUMMARY
+          echo "### 构建产物（R8 混淆 + obfuscate）" >> $GITHUB_STEP_SUMMARY
           ls -lh build/app/outputs/flutter-apk/*.apk | awk '{print "- `" $9 "`: " $5}' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "下载地址：在 Actions 运行页面下方的 Artifacts 区域" >> $GITHUB_STEP_SUMMARY
+          echo "### Release" >> $GITHUB_STEP_SUMMARY
+          echo "推送 v* tag 时自动创建 Release 并上传 APK" >> $GITHUB_STEP_SUMMARY
