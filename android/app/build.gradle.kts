@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.iconvert.iconvert"
+    namespace = "com.ming.iconvert"
     compileSdk = 36
 
     compileOptions {
@@ -33,7 +33,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.iconvert.iconvert"
+        applicationId = "com.ming.iconvert"
         minSdk = flutter.minSdkVersion
         targetSdk = 33
         versionCode = flutter.versionCode
