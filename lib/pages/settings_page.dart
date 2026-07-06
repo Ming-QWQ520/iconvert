@@ -7,7 +7,6 @@ library;
 
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
@@ -90,7 +89,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   /// 切换液态玻璃开关
-  /// 关键修复：直接通过 GlassProvider 修改状态，确保开关实时响应不再卡顿
+  /// 关键修复：直接通过 GlassProvider 修改状态，开关即时生效（无需重启）
   Future<void> _toggleLiquidGlass(bool value) async {
     final glass = context.read<GlassProvider>();
     if (value) {
@@ -116,26 +115,23 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     // 关键：通过 GlassProvider 修改并自动 notifyListeners
+    // 由于所有页面都通过 context.watch<GlassProvider>() 监听状态，
+    // 切换后所有依赖 GlassBackground / GlassCard / GlassPopup 的组件会立即重建
+    // 因此效果即时生效，无需重启 APP
     await glass.setEnabled(value);
 
-    // 提示重启生效
+    // 简短提示已生效
     if (mounted) {
-      await showCupertinoDialog<void>(
+      showCupertinoDialog<void>(
         context: context,
         builder: (ctx) => CupertinoAlertDialog(
-          title: const Text('重启生效'),
-          content: Text(value ? '液态玻璃效果将在重启后生效，是否立即重启？' : '关闭液态玻璃效果将在重启后生效，是否立即重启？'),
+          title: Text(value ? '已开启液态玻璃' : '已关闭液态玻璃'),
+          content: const Text('效果已立即生效'),
           actions: [
             CupertinoDialogAction(
-              child: const Text('取消'),
+              isDefaultAction: true,
+              child: const Text('好'),
               onPressed: () => Navigator.of(ctx).pop(),
-            ),
-            CupertinoDialogAction(
-              child: const Text('确定'),
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                SystemNavigator.pop();
-              },
             ),
           ],
         ),
