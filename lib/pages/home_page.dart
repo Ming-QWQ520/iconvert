@@ -683,6 +683,8 @@ class _HomePageState extends State<HomePage> {
     // 历史记录页：从左侧滑入（与左上角图标位置呼应）
     Navigator.of(context).push(
       PageRouteBuilder<void>(
+        // opaque: true 确保路由不透明，避免底层页面透出导致白屏
+        opaque: true,
         pageBuilder: (context, animation, secondaryAnimation) => const HistoryPage(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           // 从左侧滑入：起始 x=-1.0（屏幕左侧外），终点 x=0
@@ -690,17 +692,9 @@ class _HomePageState extends State<HomePage> {
             begin: const Offset(-1.0, 0.0),
             end: Offset.zero,
           ).chain(CurveTween(curve: Curves.easeInOutCubicEmphasized));
-          // 当前页同时从 x=0 推到 x=1（向右退出）
-          final outTween = Tween<Offset>(
-            begin: Offset.zero,
-            end: const Offset(1.0, 0.0),
-          ).chain(CurveTween(curve: Curves.easeInOutCubicEmphasized));
           return SlideTransition(
             position: animation.drive(inTween),
-            child: SlideTransition(
-              position: animation.drive(outTween),
-              child: child,
-            ),
+            child: child,
           );
         },
         transitionDuration: const Duration(milliseconds: 380),

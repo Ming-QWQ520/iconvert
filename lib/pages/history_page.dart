@@ -14,6 +14,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:iconvert/models/history_model.dart';
 import 'package:iconvert/models/conversion_model.dart';
 import 'package:iconvert/models/conversion_task.dart';
+import 'package:iconvert/widgets/glass_theme.dart';
 import 'package:iconvert/dialogs/delete_confirm_dialog.dart';
 import 'package:iconvert/dialogs/preview_dialog.dart';
 import 'package:iconvert/dialogs/audio_preview_dialog.dart';
@@ -115,7 +116,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final glass = context.watch<GlassProvider>();
     return CupertinoPageScaffold(
+      // 未开启液态玻璃：浅灰背景；开启：透明（由 GlassBackground 提供渐变）
+      backgroundColor: glass.enabled ? const Color(0x00000000) : const Color(0xFFF2F2F7),
       navigationBar: CupertinoNavigationBar(
         middle: Text(_selectionMode ? '已选 ${_selectedIds.length} 项' : '历史记录'),
         backgroundColor: CupertinoColors.transparent,
@@ -196,13 +200,15 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Widget _buildEmpty() {
-    return const Center(
+    final glass = context.watch<GlassProvider>();
+    final textColor = glass.enabled ? const Color(0xCCFFFFFF) : CupertinoColors.systemGrey;
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.clock, size: 64, color: CupertinoColors.systemGrey),
-          SizedBox(height: 16),
-          Text('暂无历史记录', style: TextStyle(fontSize: 16, color: CupertinoColors.systemGrey)),
+          Icon(CupertinoIcons.clock, size: 64, color: textColor),
+          const SizedBox(height: 16),
+          Text('暂无历史记录', style: TextStyle(fontSize: 16, color: textColor)),
         ],
       ),
     );
